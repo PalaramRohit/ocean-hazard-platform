@@ -8,56 +8,309 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <!-- Login/Signup Screen -->
+    <!-- Login Screen -->
     <div id="login-screen" class="login-screen">
         <div class="login-container">
             <div class="login-header">
                 <h1>🌊 INCOIS</h1>
                 <p>Ocean Hazard Reporting Platform</p>
             </div>
-
-            <!-- Login Form - Fixed -->
-<form id="login-form" class="auth-form active">
-    <h2>Login</h2>
-    <div class="form-group">
-        <label for="login-username" class="form-label">Username</label>
-        <input type="text" id="login-username" class="form-control" required autocomplete="username">
-    </div>
-    <div class="form-group">
-        <label for="login-password" class="form-label">Password</label>
-        <input type="password" id="login-password" class="form-control" required autocomplete="current-password">
-    </div>
-    <button type="submit" class="btn btn--primary btn--full-width">Login</button>
-    <p class="auth-switch">
-        Don't have an account? 
-        <a href="#" id="show-signup">Sign Up</a>
-    </p>
-</form>
-
-
-            <!-- Signup Form - With Role Selection -->
-            <form id="signup-form" class="auth-form">
-                <h2>Sign Up</h2>
+            <form id="login-form" class="login-form">
                 <div class="form-group">
-                    <label for="signup-username" class="form-label">Username</label>
-                    <input type="text" id="signup-username" class="form-control" required>
-                    <small class="form-help">Must be 3-20 characters long</small>
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" id="username" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="signup-email" class="form-label">Email (Optional)</label>
-                    <input type="email" id="signup-email" class="form-control">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="signup-password" class="form-label">Password</label>
-                    <input type="password" id="signup-password" class="form-control" required>
-                    <small class="form-help">Must be at least 6 characters long</small>
-                </div>
-                <div class="form-group">
-                    <label for="signup-confirm-password" class="form-label">Confirm Password</label>
-                    <input type="password" id="signup-confirm-password" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label for="signup-role" class="form-label">Role</label>
-                    <select id="signup-role" class="form-control" required>
+                    <label for="user-role" class="form-label">Role</label>
+                    <select id="user-role" class="form-control" required>
                         <option value="">Select Role</option>
-                        <option
+                        <option value="citizen">Citizen</option>
+                        <option value="official">Official</option>
+                        <option value="analyst">Analyst</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn--primary btn--full-width">Login</button>
+                <p class="login-demo-text">Demo credentials: Use any username/password with your selected role</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="main-app" class="main-app hidden">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1 class="app-title">🌊 INCOIS Ocean Hazard Platform</h1>
+                    <span id="current-role" class="role-badge"></span>
+                </div>
+                <div class="header-right">
+                    <select id="language-selector" class="form-control language-selector">
+                        <option value="en">English</option>
+                        <option value="hi">हिंदी</option>
+                        <option value="ta">தமிழ்</option>
+                        <option value="te">తెలుగు</option>
+                    </select>
+                    <button id="logout-btn" class="btn btn--outline btn--sm">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-nav">
+            <button class="nav-btn active" data-view="dashboard">📊 Dashboard</button>
+            <button class="nav-btn" data-view="map">🗺️ Map View</button>
+            <button class="nav-btn citizen-only" data-view="report">📝 Report Hazard</button>
+            <button class="nav-btn official-only analyst-only" data-view="verify">✅ Verify Reports</button>
+            <button class="nav-btn analyst-only" data-view="analytics">📈 Social Analytics</button>
+            <button class="nav-btn official-only" data-view="alerts">🚨 Alerts</button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="view active">
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <h3>Recent Reports</h3>
+                        <div id="recent-reports" class="recent-reports"></div>
+                    </div>
+                    <div class="dashboard-card">
+                        <h3>Statistics</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-value" id="total-reports">12</div>
+                                <div class="stat-label">Total Reports</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="verified-reports">8</div>
+                                <div class="stat-label">Verified</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="high-severity">3</div>
+                                <div class="stat-label">High Severity</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="social-mentions">2.1k</div>
+                                <div class="stat-label">Social Mentions</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-card full-width">
+                        <h3>Hazard Reports Trend</h3>
+                        <div class="chart-container" style="position: relative; height: 300px;">
+                            <canvas id="trend-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map View -->
+            <div id="map-view" class="view">
+                <div class="map-controls">
+                    <div class="filter-controls">
+                        <select id="hazard-filter" class="form-control">
+                            <option value="">All Hazard Types</option>
+                        </select>
+                        <select id="severity-filter" class="form-control">
+                            <option value="">All Severity Levels</option>
+                        </select>
+                        <input type="date" id="date-filter" class="form-control">
+                    </div>
+                    <div class="map-legend">
+                        <div class="legend-title">Legend</div>
+                        <div id="legend-items"></div>
+                    </div>
+                </div>
+                <div class="map-container">
+                    <div id="hazard-map" class="map-placeholder">
+                        <div class="map-title">Interactive Hazard Map</div>
+                        <div id="map-markers"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Hazard View -->
+            <div id="report-view" class="view citizen-only">
+                <div class="report-container">
+                    <h2>Report Ocean Hazard</h2>
+                    <form id="hazard-report-form" class="hazard-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="hazard-type" class="form-label">Hazard Type</label>
+                                <select id="hazard-type" class="form-control" required>
+                                    <option value="">Select Hazard Type</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="severity-level" class="form-label">Severity Level</label>
+                                <select id="severity-level" class="form-control" required>
+                                    <option value="">Select Severity</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="location-input" class="form-label">Location</label>
+                                <input type="text" id="location-input" class="form-control" placeholder="Enter location or click 'Get Current Location'" required>
+                                <button type="button" id="get-location-btn" class="btn btn--secondary btn--sm mt-8">📍 Get Current Location</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="hazard-description" class="form-label">Description</label>
+                            <textarea id="hazard-description" class="form-control" rows="4" placeholder="Describe what you observed..." required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="hazard-media" class="form-label">Photos/Videos (Optional)</label>
+                            <input type="file" id="hazard-media" class="form-control" multiple accept="image/*,video/*">
+                            <div class="file-preview" id="file-preview"></div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" id="save-offline-btn" class="btn btn--secondary">💾 Save Offline</button>
+                            <button type="submit" class="btn btn--primary">📤 Submit Report</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Verify Reports View -->
+            <div id="verify-view" class="view official-only analyst-only">
+                <div class="verify-container">
+                    <h2>Verify Reports</h2>
+                    <div class="verify-controls">
+                        <input type="text" id="search-reports" class="form-control" placeholder="Search reports...">
+                        <select id="status-filter" class="form-control">
+                            <option value="">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="verified">Verified</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div id="reports-list" class="reports-list"></div>
+                </div>
+            </div>
+
+            <!-- Social Analytics View -->
+            <div id="analytics-view" class="view analyst-only">
+                <div class="analytics-container">
+                    <h2>Social Media Analytics</h2>
+                    <div class="analytics-grid">
+                        <div class="analytics-card">
+                            <h3>Platform Mentions</h3>
+                            <div class="chart-container" style="position: relative; height: 250px;">
+                                <canvas id="platform-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Sentiment Analysis</h3>
+                            <div class="chart-container" style="position: relative; height: 250px;">
+                                <canvas id="sentiment-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Trending Hashtags</h3>
+                            <div class="hashtag-list">
+                                <div class="hashtag-item">#TsunamiAlert <span class="hashtag-count">1,247</span></div>
+                                <div class="hashtag-item">#ChennaiCoast <span class="hashtag-count">892</span></div>
+                                <div class="hashtag-item">#OceanHazard <span class="hashtag-count">656</span></div>
+                                <div class="hashtag-item">#StormSurge <span class="hashtag-count">423</span></div>
+                                <div class="hashtag-item">#CoastalAlert <span class="hashtag-count">318</span></div>
+                            </div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Real-time Social Feed</h3>
+                            <div class="social-feed">
+                                <div class="social-post">
+                                    <div class="social-header">🐦 Twitter • 2 min ago</div>
+                                    <div class="social-content">Unusual wave patterns observed at Chennai beach. Authorities investigating. #TsunamiAlert</div>
+                                    <div class="social-sentiment negative">Negative Sentiment</div>
+                                </div>
+                                <div class="social-post">
+                                    <div class="social-header">📘 Facebook • 5 min ago</div>
+                                    <div class="social-content">High waves reported at Mumbai coast. Fishing activities suspended for safety.</div>
+                                    <div class="social-sentiment concerned">Concerned Sentiment</div>
+                                </div>
+                                <div class="social-post">
+                                    <div class="social-header">📺 YouTube • 12 min ago</div>
+                                    <div class="social-content">Educational video: How to identify tsunami warning signs</div>
+                                    <div class="social-sentiment informational">Informational</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alerts View -->
+            <div id="alerts-view" class="view official-only">
+                <div class="alerts-container">
+                    <h2>Emergency Alerts</h2>
+                    <div class="alert-actions">
+                        <button id="broadcast-alert-btn" class="btn btn--primary">📢 Broadcast Alert</button>
+                        <button id="send-sms-btn" class="btn btn--secondary">📱 Send SMS Alert</button>
+                    </div>
+                    <div class="active-alerts">
+                        <h3>Active Alerts</h3>
+                        <div class="alert-item high-severity">
+                            <div class="alert-header">
+                                <span class="alert-type">🌊 Tsunami Warning</span>
+                                <span class="alert-time">2:30 PM</span>
+                            </div>
+                            <div class="alert-content">High tsunami risk detected near Chennai coast. Immediate evacuation recommended for coastal areas.</div>
+                            <div class="alert-actions-small">
+                                <button class="btn btn--sm btn--outline">Edit</button>
+                                <button class="btn btn--sm btn--secondary">Deactivate</button>
+                            </div>
+                        </div>
+                        <div class="alert-item medium-severity">
+                            <div class="alert-header">
+                                <span class="alert-type">🌪️ Storm Surge Alert</span>
+                                <span class="alert-time">1:15 PM</span>
+                            </div>
+                            <div class="alert-content">Moderate storm surge expected at Goa beaches. Avoid coastal activities.</div>
+                            <div class="alert-actions-small">
+                                <button class="btn btn--sm btn--outline">Edit</button>
+                                <button class="btn btn--sm btn--secondary">Deactivate</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Report Details Modal -->
+    <div id="report-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Report Details</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+            <div class="modal-footer official-only analyst-only">
+                <button id="verify-report-btn" class="btn btn--primary">✅ Verify</button>
+                <button id="reject-report-btn" class="btn btn--outline">❌ Reject</button>
+                <button class="modal-close btn btn--secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Success -->
+    <div id="success-alert" class="alert alert--success hidden">
+        <span id="success-message"></span>
+        <button class="alert-close">&times;</button>
+    </div>
+
+    <!-- Alert Error -->
+    <div id="error-alert" class="alert alert--error hidden">
+        <span id="error-message"></span>
+        <button class="alert-close">&times;</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

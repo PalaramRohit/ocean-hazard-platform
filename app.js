@@ -52,1278 +52,819 @@ const appData = {
     {platform: "Twitter", mentions: 1247, sentiment: "negative", trending_hashtags: ["#TsunamiAlert", "#ChennaiCoast", "#OceanHazard"]},
     {platform: "Facebook", posts: 892, sentiment: "concerned", engagement: "high"},
     {platform: "YouTube", videos: 156, sentiment: "informational", views: 45600}
+  ],
+  languages: [
+    {code: "en", name: "English"},
+    {code: "hi", name: "हिंदी"},
+    {code: "ta", name: "தமிழ்"},
+    {code: "te", name: "తెలుగు"}
   ]
 };
 
-// API Configuration
-const API_BASE_URL = 'http://localhost:5000/api';
-
-// Authentication State
+// Global State
 let currentUser = null;
-let authToken = localStorage.getItem('authToken');
-let currentSection = 'dashboard';
-let offlineReports = JSON.parse(localStorage.getItem('offlineReports') || '[]');
+let currentView = 'dashboard';
+let allReports = [...appData.sampleReports];
+let charts = {};
 
 // DOM Elements
-let loginScreen, mainApp, loginForm, signupForm, showSignupBtn, showLoginBtn, logoutBtn, roleDisplay;
-let sidebarLinks, contentSections;
+let loginScreen, mainApp, loginForm, currentRoleSpan, navButtons, views;
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🔵 DOM Content Loaded');
-    
-    // Initialize DOM elements
-    initializeDOMElements();
-    
-    // Test backend connection
-    testBackendConnection();
-    
-    // Initialize components
-    initializeAuth();
-    initializeEventListeners();
-    setTimeout(setupCharts, 500); // Delay charts to ensure DOM is ready
+  initializeDOM();
+  initializeApp();
+  setupEventListeners();
+  populateFormOptions();
+  updateStatistics();
 });
 
-// Initialize DOM Elements
-function initializeDOMElements() {
-    console.log('🔵 Initializing DOM elements...');
-    
-    loginScreen = document.getElementById('login-screen');
-    mainApp = document.getElementById('main-app');
-    loginForm = document.getElementById('login-form');
-    signupForm = document.getElementById('signup-form');
-    showSignupBtn = document.getElementById('show-signup');
-    showLoginBtn = document.getElementById('show-login');
-    logoutBtn = document.getElementById('logout-btn');
-    roleDisplay = document.getElementById('role-display');
-    sidebarLinks = document.querySelectorAll('.sidebar__link');
-    contentSections = document.querySelectorAll('.content-section');
-    
-    console.log('✅ DOM elements initialized:', {
-        loginScreen: !!loginScreen,
-        mainApp: !!mainApp,
-        loginForm: !!loginForm,
-        signupForm: !!signupForm
+function initializeDOM() {
+  loginScreen = document.getElementById('login-screen');
+  mainApp = document.getElementById('main-app');
+  loginForm = document.getElementById('login-form');
+  currentRoleSpan = document.getElementById('current-role');
+  navButtons = document.querySelectorAll('.nav-btn');
+  views = document.querySelectorAll('.view');
+}
+
+function initializeApp() {
+  // Ensure proper initial state
+  if (loginScreen && mainApp) {
+    loginScreen.style.display = 'flex';
+    mainApp.style.display = 'none';
+    loginScreen.classList.remove('hidden');
+    mainApp.classList.add('hidden');
+  }
+}
+
+function setupEventListeners() {
+  // Login Form
+  if (loginForm) {
+    loginForm.addEventListener('submit', handleLogin);
+  }
+  
+  // Navigation
+  navButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const view = e.target.dataset.view;
+      if (view) switchView(view);
     });
+  });
+  
+  // Logout
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', handleLogout);
+  }
+  
+  // Report Form
+  const reportForm = document.getElementById('hazard-report-form');
+  if (reportForm) {
+    reportForm.addEventListener('submit', handleReportSubmit);
+  }
+  
+  // Get Location
+  const getLocationBtn = document.getElementById('get-location-btn');
+  if (getLocationBtn) {
+    getLocationBtn.addEventListener('click', getCurrentLocation);
+  }
+  
+  // File Upload
+  const fileInput = document.getElementById('hazard-media');
+  if (fileInput) {
+    fileInput.addEventListener('change', handleFileUpload);
+  }
+  
+  // Save Offline
+  const saveOfflineBtn = document.getElementById('save-offline-btn');
+  if (saveOfflineBtn) {
+    saveOfflineBtn.addEventListener('click', saveReportOffline);
+  }
+  
+  // Filters
+  setupFilters();
+  
+  // Modal functionality
+  setupModalHandlers();
+  
+  // Alert Broadcasting
+  const broadcastBtn = document.getElementById('broadcast-alert-btn');
+  if (broadcastBtn) {
+    broadcastBtn.addEventListener('click', () => showAlert('Alert broadcast to all registered users!', 'success'));
+  }
+  
+  const smsBtn = document.getElementById('send-sms-btn');
+  if (smsBtn) {
+    smsBtn.addEventListener('click', () => showAlert('SMS alerts sent to emergency contacts!', 'success'));
+  }
+  
+  // Language Selector
+  const languageSelector = document.getElementById('language-selector');
+  if (languageSelector) {
+    languageSelector.addEventListener('change', handleLanguageChange);
+  }
+  
+  // Search Reports
+  const searchInput = document.getElementById('search-reports');
+  if (searchInput) {
+    searchInput.addEventListener('input', filterReports);
+  }
+  
+  const statusFilter = document.getElementById('status-filter');
+  if (statusFilter) {
+    statusFilter.addEventListener('change', filterReports);
+  }
 }
 
-// Test Backend Connection
-async function testBackendConnection() {
-    try {
-        console.log('🔵 Testing backend connection...');
-        const response = await fetch('http://localhost:5000/test');
-        
-        if (response.ok) {
-            const data = await response.json();
-            console.log('✅ Backend connection successful:', data);
-            return true;
-        } else {
-            throw new Error(`HTTP ${response.status}`);
-        }
-    } catch (error) {
-        console.error('❌ Backend connection failed:', error);
-        showNotification('Cannot connect to backend server! Make sure it\'s running on port 5000.', 'error');
-        return false;
+function handleLogin(e) {
+  e.preventDefault();
+  const username = document.getElementById('username').value;
+  const role = document.getElementById('user-role').value;
+  
+  if (username && role) {
+    currentUser = { username, role };
+    
+    // Hide login screen and show main app
+    if (loginScreen && mainApp) {
+      loginScreen.style.display = 'none';
+      mainApp.style.display = 'flex';
+      loginScreen.classList.add('hidden');
+      mainApp.classList.remove('hidden');
     }
+    
+    // Set role-based styling
+    document.body.dataset.role = role;
+    if (currentRoleSpan) {
+      currentRoleSpan.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+    }
+    
+    // Initialize dashboard
+    setTimeout(() => {
+      switchView('dashboard');
+      updateDashboard();
+      renderRecentReports();
+      initializeCharts();
+      showAlert(`Welcome, ${username}! Logged in as ${role}.`, 'success');
+    }, 100);
+  }
 }
 
-// Authentication Initialization - FIXED
-function initializeAuth() {
-    console.log('🔵 Initializing authentication...');
-    
-    // Check if user is already logged in
-    if (authToken) {
-        verifyToken();
-    }
-    
-    // Show login form by default
-    if (loginForm) {
-        loginForm.classList.add('active');
-        console.log('✅ Login form made active');
-    }
-    
-    // Authentication event listeners with proper error handling
-    if (loginForm) {
-        console.log('🔵 Adding login form event listener');
-        loginForm.addEventListener('submit', function(e) {
-            console.log('🔵 Login form submitted');
-            e.preventDefault(); // Prevent default form submission
-            handleLogin(e);
-        });
-    } else {
-        console.log('❌ Login form not found');
-    }
-    
-    if (signupForm) {
-        signupForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            handleSignup(e);
-        });
-    }
-    
-    if (showSignupBtn) {
-        showSignupBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            showSignupForm(e);
-        });
-    }
-    
-    if (showLoginBtn) {
-        showLoginBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            showLoginForm(e);
-        });
-    }
-    
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', handleLogout);
-    }
-    
-    console.log('✅ Authentication initialized');
-}
-
-// Show/Hide Authentication Forms
-function showSignupForm(e) {
-    e.preventDefault();
-    console.log('🔵 Showing signup form');
-    if (loginForm) loginForm.classList.remove('active');
-    if (signupForm) signupForm.classList.add('active');
-}
-
-function showLoginForm(e) {
-    e.preventDefault();
-    console.log('🔵 Showing login form');
-    if (signupForm) signupForm.classList.remove('active');
-    if (loginForm) loginForm.classList.add('active');
-}
-
-// Signup Handler - Updates Database
-async function handleSignup(e) {
-    e.preventDefault();
-    console.log('🔵 Signup form submitted');
-    
-    const username = document.getElementById('signup-username')?.value;
-    const email = document.getElementById('signup-email')?.value;
-    const password = document.getElementById('signup-password')?.value;
-    const confirmPassword = document.getElementById('signup-confirm-password')?.value;
-    const role = document.getElementById('signup-role')?.value;
-    
-    console.log('🔵 Signup data:', { username, email, role, passwordLength: password?.length });
-    
-    // Clear previous errors
-    clearFormErrors();
-    
-    // Validation
-    if (!validateSignup(username, password, confirmPassword, role)) {
-        return;
-    }
-    
-    // Set loading state
-    const submitBtn = signupForm.querySelector('button[type="submit"]');
-    if (submitBtn) {
-        submitBtn.classList.add('loading');
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Creating Account...';
-    }
-    
-    try {
-        console.log('🔵 Sending signup request...');
-        
-        const response = await fetch(`${API_BASE_URL}/auth/register`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                username: username.trim(),
-                email: email ? email.trim() : undefined,
-                password,
-                role
-            })
-        });
-        
-        const data = await response.json();
-        console.log('🔵 Signup response:', data);
-        
-        if (response.ok) {
-            console.log('✅ Signup successful');
-            showNotification('Account created successfully! Please login.', 'success');
-            signupForm.reset();
-            showLoginForm({ preventDefault: () => {} });
-            
-            // Pre-fill login form with username
-            if (document.getElementById('login-username')) {
-                document.getElementById('login-username').value = username;
-            }
-        } else {
-            console.log('❌ Signup failed:', data.error);
-            showFormError('signup-username', data.error);
-            showNotification(data.error, 'error');
-        }
-    } catch (error) {
-        console.error('❌ Signup network error:', error);
-        showNotification('Network error. Check your internet connection.', 'error');
-        showFormError('signup-username', 'Unable to create account. Please try again.');
-    } finally {
-        if (submitBtn) {
-            submitBtn.classList.remove('loading');
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Sign Up';
-        }
-    }
-}
-
-// Fixed Login Handler
-async function handleLogin(e) {
-    e.preventDefault(); // Prevent form submission
-    console.log('🔵 handleLogin called');
-    
-    const username = document.getElementById('login-username')?.value;
-    const password = document.getElementById('login-password')?.value;
-    
-    console.log('🔵 Login attempt:', { username, passwordLength: password?.length });
-    console.log('🔵 API URL:', `${API_BASE_URL}/auth/login`);
-    
-    if (!username || !password) {
-        console.log('❌ Missing credentials');
-        showNotification('Please enter both username and password', 'error');
-        showFormError('login-username', 'Please fill in all fields');
-        return false;
-    }
-    
-    const submitBtn = loginForm.querySelector('button[type="submit"]');
-    if (submitBtn) {
-        submitBtn.textContent = 'Logging in...';
-        submitBtn.disabled = true;
-    }
-    
-    try {
-        console.log('🔵 Making API request...');
-        
-        const response = await fetch(`${API_BASE_URL}/auth/login`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-                username: username.trim(), 
-                password 
-            })
-        });
-        
-        console.log('🔵 Response status:', response.status);
-        console.log('🔵 Response ok:', response.ok);
-        
-        const data = await response.json();
-        console.log('🔵 Response data:', data);
-        
-        if (response.ok) {
-            console.log('✅ Login successful!');
-            
-            // Store authentication data
-            authToken = data.token;
-            currentUser = { username: data.username, role: data.role };
-            
-            localStorage.setItem('authToken', authToken);
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            
-            // Update UI
-            document.body.setAttribute('data-role', data.role);
-            
-            if (roleDisplay) {
-                roleDisplay.textContent = `${data.role.charAt(0).toUpperCase() + data.role.slice(1)} Dashboard`;
-            }
-            
-            // Hide login, show main app
-            if (loginScreen) loginScreen.classList.add('hidden');
-            if (mainApp) mainApp.classList.remove('hidden');
-            
-            showNotification(`Welcome back, ${data.username}!`, 'success');
-            loadDashboardData();
-            renderReports();
-            
-        } else {
-            console.log('❌ Login failed:', data.error);
-            showFormError('login-username', data.error);
-            showNotification(data.error || 'Login failed', 'error');
-            
-            if (data.error && data.error.includes('not found')) {
-                setTimeout(() => {
-                    if (confirm('Account not found. Would you like to create a new account?')) {
-                        showSignupForm({ preventDefault: () => {} });
-                        if (document.getElementById('signup-username')) {
-                            document.getElementById('signup-username').value = username;
-                        }
-                    }
-                }, 2000);
-            }
-        }
-        
-    } catch (error) {
-        console.error('❌ Network error:', error);
-        showNotification('Cannot connect to server. Make sure backend is running on port 5000.', 'error');
-        showFormError('login-username', 'Server connection failed');
-    } finally {
-        if (submitBtn) {
-            submitBtn.textContent = 'Login';
-            submitBtn.disabled = false;
-        }
-    }
-    
-    return false; // Prevent any further form submission
-}
-
-// Logout Handler
 function handleLogout() {
-    console.log('🔵 Logging out...');
-    
-    authToken = null;
-    currentUser = null;
-    
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('currentUser');
-    
-    document.body.removeAttribute('data-role');
-    
-    if (loginScreen) loginScreen.classList.remove('hidden');
-    if (mainApp) mainApp.classList.add('hidden');
-    
-    // Reset forms
-    if (loginForm) loginForm.reset();
-    if (signupForm) signupForm.reset();
-    showLoginForm({ preventDefault: () => {} });
-    
-    showNotification('Logged out successfully', 'info');
+  currentUser = null;
+  document.body.removeAttribute('data-role');
+  
+  // Show login screen and hide main app
+  if (loginScreen && mainApp) {
+    loginScreen.style.display = 'flex';
+    mainApp.style.display = 'none';
+    loginScreen.classList.remove('hidden');
+    mainApp.classList.add('hidden');
+  }
+  
+  // Reset form
+  if (loginForm) {
+    loginForm.reset();
+  }
+  
+  showAlert('Logged out successfully!', 'success');
 }
 
-// Verify Token
-async function verifyToken() {
-    try {
-        console.log('🔵 Verifying token...');
-        const response = await authenticatedFetch(`${API_BASE_URL}/auth/verify`, {
-            method: 'GET'
-        });
-        
-        if (response.ok) {
-            const userData = JSON.parse(localStorage.getItem('currentUser'));
-            if (userData) {
-                currentUser = userData;
-                document.body.setAttribute('data-role', userData.role);
-                if (roleDisplay) {
-                    roleDisplay.textContent = `${userData.role.charAt(0).toUpperCase() + userData.role.slice(1)} Dashboard`;
-                }
-                
-                if (loginScreen) loginScreen.classList.add('hidden');
-                if (mainApp) mainApp.classList.remove('hidden');
-                loadDashboardData();
-                renderReports();
-                console.log('✅ Token verified, user logged in');
-            }
-        } else {
-            // Token invalid, clear storage
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('currentUser');
-            authToken = null;
-            console.log('❌ Token invalid, cleared storage');
-        }
-    } catch (error) {
-        console.log('❌ Token verification failed:', error);
+function switchView(viewName) {
+  // Update navigation
+  navButtons.forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.dataset.view === viewName) {
+      btn.classList.add('active');
     }
+  });
+  
+  // Update views
+  views.forEach(view => {
+    view.classList.remove('active');
+    if (view.id === `${viewName}-view`) {
+      view.classList.add('active');
+    }
+  });
+  
+  currentView = viewName;
+  
+  // Initialize specific view functionality
+  if (viewName === 'map') {
+    setTimeout(() => initializeMap(), 100);
+  } else if (viewName === 'verify') {
+    setTimeout(() => renderReportsList(), 100);
+  } else if (viewName === 'analytics') {
+    setTimeout(() => initializeAnalyticsCharts(), 100);
+  }
 }
 
-// Enhanced Form Validation
-function validateSignup(username, password, confirmPassword, role) {
-    let isValid = true;
-    
-    // Username validation
-    if (!username || username.trim().length < 3 || username.trim().length > 20) {
-        showFormError('signup-username', 'Username must be 3-20 characters long');
-        isValid = false;
-    }
-    
-    // Check for valid username characters
-    if (username && !/^[a-zA-Z0-9_]+$/.test(username.trim())) {
-        showFormError('signup-username', 'Username can only contain letters, numbers, and underscores');
-        isValid = false;
-    }
-    
-    // Password validation
-    if (!password || password.length < 6) {
-        showFormError('signup-password', 'Password must be at least 6 characters long');
-        isValid = false;
-    }
-    
-    // Confirm password validation
-    if (password !== confirmPassword) {
-        showFormError('signup-confirm-password', 'Passwords do not match');
-        isValid = false;
-    }
-    
-    // Role validation
-    if (!role) {
-        showFormError('signup-role', 'Please select a role');
-        isValid = false;
-    }
-    
-    return isValid;
+function populateFormOptions() {
+  // Populate hazard types
+  const hazardSelect = document.getElementById('hazard-type');
+  const hazardFilter = document.getElementById('hazard-filter');
+  
+  if (hazardSelect) {
+    appData.hazardTypes.forEach(type => {
+      const option = document.createElement('option');
+      option.value = type.id;
+      option.textContent = `${type.icon} ${type.name}`;
+      hazardSelect.appendChild(option);
+    });
+  }
+  
+  if (hazardFilter) {
+    appData.hazardTypes.forEach(type => {
+      const option = document.createElement('option');
+      option.value = type.id;
+      option.textContent = `${type.icon} ${type.name}`;
+      hazardFilter.appendChild(option);
+    });
+  }
+  
+  // Populate severity levels
+  const severitySelect = document.getElementById('severity-level');
+  const severityFilter = document.getElementById('severity-filter');
+  
+  if (severitySelect) {
+    appData.severityLevels.forEach(level => {
+      const option = document.createElement('option');
+      option.value = level.id;
+      option.textContent = level.name;
+      severitySelect.appendChild(option);
+    });
+  }
+  
+  if (severityFilter) {
+    appData.severityLevels.forEach(level => {
+      const option = document.createElement('option');
+      option.value = level.id;
+      option.textContent = level.name;
+      severityFilter.appendChild(option);
+    });
+  }
 }
 
-// Enhanced Form Error Handling
-function showFormError(fieldId, message) {
-    const field = document.getElementById(fieldId);
-    if (!field) return;
-    
-    field.classList.add('error');
-    field.focus();
-    
-    // Remove existing error message
-    const existingError = field.parentNode.querySelector('.error-message');
-    if (existingError) {
-        existingError.remove();
-    }
-    
-    // Add new error message
-    const errorElement = document.createElement('small');
-    errorElement.className = 'error-message';
-    errorElement.textContent = message;
-    errorElement.style.color = '#ef4444';
-    errorElement.style.fontWeight = 'bold';
-    field.parentNode.appendChild(errorElement);
-}
-
-function clearFormErrors() {
-    const errorFields = document.querySelectorAll('.form-control.error');
-    const errorMessages = document.querySelectorAll('.error-message');
-    
-    errorFields.forEach(field => field.classList.remove('error'));
-    errorMessages.forEach(message => message.remove());
-}
-
-// Authenticated Requests
-async function authenticatedFetch(url, options = {}) {
-    const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers
-    };
-    
-    if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-    }
-    
-    const response = await fetch(url, { ...options, headers });
-    
-    // Handle token expiration
-    if (response.status === 401) {
-        handleLogout();
-        showNotification('Session expired. Please login again.', 'warning');
-    }
-    
-    return response;
-}
-
-// Event Listeners
-function initializeEventListeners() {
-    console.log('🔵 Initializing event listeners...');
-    
-    // Navigation
-    if (sidebarLinks) {
-        sidebarLinks.forEach(link => {
-            link.addEventListener('click', handleNavigation);
-        });
-    }
-    
-    // Hazard report form
-    const reportForm = document.getElementById('hazard-report-form');
-    if (reportForm) {
-        reportForm.addEventListener('submit', handleReportSubmission);
-    }
-    
-    // Location detection
-    const getLocationBtn = document.getElementById('get-location');
-    if (getLocationBtn) {
-        getLocationBtn.addEventListener('click', getCurrentLocation);
-    }
-    
-    // Media upload
-    const mediaUpload = document.getElementById('media-upload');
-    if (mediaUpload) {
-        mediaUpload.addEventListener('change', handleMediaUpload);
-    }
-    
-    // Save offline
-    const saveOfflineBtn = document.getElementById('save-offline');
-    if (saveOfflineBtn) {
-        saveOfflineBtn.addEventListener('click', saveReportOffline);
-    }
-    
-    // Alert form
-    const alertForm = document.getElementById('alert-form');
-    if (alertForm) {
-        alertForm.addEventListener('submit', handleAlertBroadcast);
-    }
-    
-    // Search and filters
-    const searchReports = document.getElementById('search-reports');
-    if (searchReports) {
-        searchReports.addEventListener('input', filterReports);
-    }
-    
-    const statusFilter = document.getElementById('status-filter');
-    if (statusFilter) {
-        statusFilter.addEventListener('change', filterReports);
-    }
-    
-    // Modal close
-    const modalClose = document.querySelector('.modal-close');
-    if (modalClose) {
-        modalClose.addEventListener('click', closeModal);
-    }
-    
-    // Export reports
-    const exportBtn = document.getElementById('export-reports');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', exportReports);
-    }
-    
-    console.log('✅ Event listeners initialized');
-}
-
-// Navigation
-function handleNavigation(e) {
-    e.preventDefault();
-    const section = e.target.getAttribute('data-section');
-    
-    if (section) {
-        // Update active link
-        sidebarLinks.forEach(link => link.classList.remove('active'));
-        e.target.classList.add('active');
-        
-        // Show corresponding section
-        contentSections.forEach(section => section.classList.remove('active'));
-        const targetSection = document.getElementById(`${section}-section`);
-        if (targetSection) {
-            targetSection.classList.add('active');
-            currentSection = section;
-        }
-        
-        // Load section-specific data
-        loadSectionData(section);
-    }
-}
-
-// Section Data Loading
-function loadSectionData(section) {
-    switch(section) {
-        case 'dashboard':
-            loadDashboardData();
-            break;
-        case 'map':
-            loadMapData();
-            break;
-        case 'reports':
-            renderReports();
-            break;
-        case 'analytics':
-            loadAnalyticsData();
-            break;
-        case 'verify':
-            loadVerificationQueue();
-            break;
-        case 'alerts':
-            loadActiveAlerts();
-            break;
-    }
-}
-
-function loadDashboardData() {
-    renderRecentReports();
-    updateStatistics();
-}
-
-function renderRecentReports() {
-    const container = document.getElementById('recent-reports');
-    if (!container) return;
-    
-    container.innerHTML = appData.sampleReports.map(report => {
-        const hazardType = appData.hazardTypes.find(h => h.id === report.type);
-        const timeAgo = getTimeAgo(report.timestamp);
-        
-        return `
-            <div class="report-item" onclick="showReportDetails('${report.id}')">
-                <div class="report-info">
-                    <h4>${hazardType?.icon} ${hazardType?.name}</h4>
-                    <p>${report.location.name} • ${timeAgo}</p>
-                </div>
-                <span class="report-status report-status--${report.status}">${report.status}</span>
-            </div>
-        `;
-    }).join('');
-}
-
-function updateStatistics() {
-    // Statistics are already in HTML, would be dynamic in real implementation
-}
-
-// Report Management
-async function handleReportSubmission(e) {
-    e.preventDefault();
-    
-    if (!authToken) {
-        showNotification('Please login to submit reports', 'error');
-        return;
-    }
-    
-    const report = {
-        type: document.getElementById('hazard-type')?.value,
-        severity: document.getElementById('severity')?.value,
-        location: {
-            name: document.getElementById('location')?.value,
-            lat: null,
-            lng: null
-        },
-        description: document.getElementById('description')?.value
-    };
-    
-    if (!report.type || !report.severity || !report.location.name || !report.description) {
-        showNotification('Please fill in all required fields', 'error');
-        return;
-    }
-    
-    try {
-        const response = await authenticatedFetch(`${API_BASE_URL}/reports`, {
-            method: 'POST',
-            body: JSON.stringify(report)
-        });
-        
-        if (response.ok) {
-            const newReport = await response.json();
-            
-            // Add to local data for immediate UI update
-            appData.sampleReports.unshift({
-                ...newReport,
-                id: newReport._id || 'R' + String(Date.now()).slice(-6),
-                timestamp: newReport.createdAt || new Date().toISOString(),
-                reporter: currentUser.username
-            });
-            
-            showNotification('Report submitted successfully!', 'success');
-            e.target.reset();
-            
-            const mediaPreview = document.getElementById('media-preview');
-            if (mediaPreview) mediaPreview.innerHTML = '';
-            
-            const locationCoords = document.getElementById('location-coordinates');
-            if (locationCoords) locationCoords.classList.add('hidden');
-            
-            // Refresh dashboard
-            renderRecentReports();
-        } else {
-            const error = await response.json();
-            showNotification(error.error || 'Failed to submit report', 'error');
-        }
-    } catch (error) {
-        showNotification('Network error. Please try again.', 'error');
-    }
+function handleReportSubmit(e) {
+  e.preventDefault();
+  
+  const hazardType = document.getElementById('hazard-type')?.value;
+  const severityLevel = document.getElementById('severity-level')?.value;
+  const location = document.getElementById('location-input')?.value;
+  const description = document.getElementById('hazard-description')?.value;
+  const files = document.getElementById('hazard-media')?.files;
+  
+  if (!hazardType || !severityLevel || !location || !description) {
+    showAlert('Please fill all required fields!', 'error');
+    return;
+  }
+  
+  // Create new report
+  const newReport = {
+    id: `R${String(allReports.length + 1).padStart(3, '0')}`,
+    type: hazardType,
+    severity: severityLevel,
+    location: { name: location, lat: Math.random() * 30 + 8, lng: Math.random() * 30 + 68 },
+    description: description,
+    timestamp: new Date().toISOString(),
+    reporter: currentUser?.username || 'Anonymous',
+    status: 'pending',
+    images: files ? Array.from(files).map(file => file.name) : []
+  };
+  
+  allReports.unshift(newReport);
+  
+  // Reset form
+  e.target.reset();
+  const filePreview = document.getElementById('file-preview');
+  if (filePreview) {
+    filePreview.innerHTML = '';
+  }
+  
+  // Update UI
+  updateStatistics();
+  renderRecentReports();
+  
+  showAlert('Hazard report submitted successfully!', 'success');
 }
 
 function getCurrentLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                const locationCoords = document.getElementById('location-coordinates');
-                if (locationCoords) {
-                    locationCoords.innerHTML = `📍 Coordinates: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-                    locationCoords.classList.remove('hidden');
-                }
-                showNotification('Location captured!', 'success');
-            },
-            () => {
-                showNotification('Unable to get location', 'error');
-            }
-        );
-    } else {
-        showNotification('Geolocation not supported', 'error');
-    }
+  if (navigator.geolocation) {
+    showAlert('Getting your location...', 'success');
+    
+    // Simulate location retrieval
+    setTimeout(() => {
+      const simulatedLocations = [
+        'Chennai Coast, Tamil Nadu',
+        'Mumbai Coast, Maharashtra', 
+        'Goa Beach, Goa',
+        'Visakhapatnam Coast, Andhra Pradesh',
+        'Kochi Coast, Kerala'
+      ];
+      
+      const randomLocation = simulatedLocations[Math.floor(Math.random() * simulatedLocations.length)];
+      const locationInput = document.getElementById('location-input');
+      if (locationInput) {
+        locationInput.value = randomLocation;
+      }
+      showAlert('Location retrieved successfully!', 'success');
+    }, 1500);
+  } else {
+    showAlert('Geolocation is not supported by this browser.', 'error');
+  }
 }
 
-function handleMediaUpload(e) {
-    const files = Array.from(e.target.files);
-    const preview = document.getElementById('media-preview');
-    
-    if (preview) {
-        preview.innerHTML = files.map(file => {
-            const isImage = file.type.startsWith('image/');
-            const isVideo = file.type.startsWith('video/');
-            const icon = isImage ? '🖼️' : isVideo ? '🎥' : '📄';
-            
-            return `<div class="media-item">${icon} ${file.name}</div>`;
-        }).join('');
-    }
+function handleFileUpload(e) {
+  const files = e.target.files;
+  const preview = document.getElementById('file-preview');
+  if (!preview) return;
+  
+  preview.innerHTML = '';
+  
+  Array.from(files).forEach(file => {
+    const previewItem = document.createElement('div');
+    previewItem.className = 'file-preview-item';
+    previewItem.textContent = `📎 ${file.name}`;
+    preview.appendChild(previewItem);
+  });
 }
 
 function saveReportOffline() {
-    const report = {
-        type: document.getElementById('hazard-type')?.value,
-        severity: document.getElementById('severity')?.value,
-        location: document.getElementById('location')?.value,
-        description: document.getElementById('description')?.value,
-        timestamp: new Date().toISOString(),
-        offline: true
-    };
-    
-    if (report.type && report.severity && report.location && report.description) {
-        offlineReports.push(report);
-        localStorage.setItem('offlineReports', JSON.stringify(offlineReports));
-        showNotification('Report saved offline!', 'success');
-    } else {
-        showNotification('Please fill all required fields', 'error');
-    }
+  const hazardType = document.getElementById('hazard-type')?.value;
+  const severityLevel = document.getElementById('severity-level')?.value;
+  const location = document.getElementById('location-input')?.value;
+  const description = document.getElementById('hazard-description')?.value;
+  
+  if (hazardType && severityLevel && location && description) {
+    // Simulate offline storage
+    showAlert('Report saved offline. Will sync when connection is available.', 'success');
+  } else {
+    showAlert('Please fill all required fields before saving offline.', 'error');
+  }
 }
 
-// Chart Setup
-function setupCharts() {
-    console.log('🔵 Setting up charts...');
-    
-    try {
-        setupHazardChart();
-        setupSeverityChart();
-        setupPlatformChart();
-        setupSentimentChart();
-        setupTimelineChart();
-        console.log('✅ Charts setup completed');
-    } catch (error) {
-        console.error('❌ Chart setup error:', error);
-    }
-}
-
-function setupHazardChart() {
-    const ctx = document.getElementById('hazard-chart');
-    if (!ctx) return;
-    
-    const hazardCounts = appData.hazardTypes.map(type => 
-        appData.sampleReports.filter(report => report.type === type.id).length
-    );
-    
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: appData.hazardTypes.map(h => h.name),
-            datasets: [{
-                data: hazardCounts,
-                backgroundColor: appData.hazardTypes.map(h => h.color),
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            }
-        }
-    });
-}
-
-function setupSeverityChart() {
-    const ctx = document.getElementById('severity-chart');
-    if (!ctx) return;
-    
-    const severityCounts = appData.severityLevels.map(level => 
-        appData.sampleReports.filter(report => report.severity === level.id).length
-    );
-    
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: appData.severityLevels.map(s => s.name),
-            datasets: [{
-                label: 'Reports',
-                data: severityCounts,
-                backgroundColor: appData.severityLevels.map(s => s.color),
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-}
-
-function setupPlatformChart() {
-    const ctx = document.getElementById('platform-chart');
-    if (!ctx) return;
-    
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: appData.socialMediaData.map(p => p.platform),
-            datasets: [{
-                label: 'Mentions',
-                data: [1247, 892, 156],
-                backgroundColor: ['#1da1f2', '#4267b2', '#ff0000'],
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            }
-        }
-    });
-}
-
-function setupSentimentChart() {
-    const ctx = document.getElementById('sentiment-chart');
-    if (!ctx) return;
-    
-    new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels: ['Negative', 'Neutral', 'Positive'],
-            datasets: [{
-                data: [45, 35, 20],
-                backgroundColor: ['#ff4444', '#ffaa00', '#44ff44'],
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            }
-        }
-    });
-}
-
-function setupTimelineChart() {
-    const ctx = document.getElementById('timeline-chart');
-    if (!ctx) return;
-    
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: ['6h ago', '5h ago', '4h ago', '3h ago', '2h ago', '1h ago', 'Now'],
-            datasets: [{
-                label: 'Mentions',
-                data: [120, 150, 180, 220, 280, 350, 400],
-                borderColor: '#33808d',
-                backgroundColor: 'rgba(51, 128, 141, 0.1)',
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-}
-
-// Map Functions
-function loadMapData() {
-    const mapContainer = document.getElementById('hazard-map');
-    if (!mapContainer) return;
-    
-    mapContainer.innerHTML = `
-        <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #e0f2fe 0%, #b3e5fc 100%);">
-            <div style="text-align: center;">
-                <h3>🗺️ Interactive Map</h3>
-                <p>Showing ${appData.sampleReports.length} hazard reports</p>
-                <div style="margin-top: 20px;">
-                    ${appData.sampleReports.map(report => {
-                        const hazardType = appData.hazardTypes.find(h => h.id === report.type);
-                        return `<div style="display: inline-block; margin: 5px; padding: 5px 10px; background: ${hazardType?.color}; color: white; border-radius: 20px; font-size: 12px;">${hazardType?.icon} ${report.location.name}</div>`;
-                    }).join('')}
-                </div>
-            </div>
-        </div>
+function initializeMap() {
+  const mapMarkers = document.getElementById('map-markers');
+  const legendItems = document.getElementById('legend-items');
+  
+  if (!mapMarkers || !legendItems) return;
+  
+  // Clear existing content
+  mapMarkers.innerHTML = '';
+  legendItems.innerHTML = '';
+  
+  // Create legend
+  appData.hazardTypes.forEach(type => {
+    const legendItem = document.createElement('div');
+    legendItem.className = 'legend-item';
+    legendItem.innerHTML = `
+      <div class="legend-color" style="background-color: ${type.color}"></div>
+      <span>${type.icon} ${type.name}</span>
     `;
+    legendItems.appendChild(legendItem);
+  });
+  
+  // Create markers for reports
+  allReports.forEach((report, index) => {
+    const hazardType = appData.hazardTypes.find(t => t.id === report.type);
+    if (!hazardType) return;
+    
+    const marker = document.createElement('div');
+    marker.className = `map-marker ${report.type}`;
+    marker.style.left = `${20 + (index * 15) % 80}%`;
+    marker.style.top = `${30 + (index * 10) % 40}%`;
+    marker.textContent = hazardType.icon;
+    marker.title = `${hazardType.name} - ${report.location.name}`;
+    
+    marker.addEventListener('click', () => {
+      showReportModal(report);
+    });
+    
+    mapMarkers.appendChild(marker);
+  });
 }
 
-// Reports List
-function renderReports() {
-    const container = document.getElementById('reports-list');
-    if (!container) return;
+function setupFilters() {
+  const hazardFilter = document.getElementById('hazard-filter');
+  const severityFilter = document.getElementById('severity-filter');
+  const dateFilter = document.getElementById('date-filter');
+  
+  [hazardFilter, severityFilter, dateFilter].forEach(filter => {
+    if (filter) {
+      filter.addEventListener('change', applyMapFilters);
+    }
+  });
+}
+
+function applyMapFilters() {
+  // In a real implementation, this would filter the map markers
+  showAlert('Map filters applied!', 'success');
+  if (currentView === 'map') {
+    initializeMap();
+  }
+}
+
+function renderRecentReports() {
+  const container = document.getElementById('recent-reports');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  const recentReports = allReports.slice(0, 5);
+  
+  recentReports.forEach(report => {
+    const hazardType = appData.hazardTypes.find(t => t.id === report.type);
+    const reportItem = document.createElement('div');
+    reportItem.className = `report-item severity-${report.severity}`;
+    reportItem.innerHTML = `
+      <div class="report-header">
+        <span class="report-type">${hazardType ? hazardType.icon : ''} ${hazardType ? hazardType.name : 'Unknown'}</span>
+        <span class="report-time">${formatTime(report.timestamp)}</span>
+      </div>
+      <div class="report-location">📍 ${report.location.name}</div>
+    `;
+    reportItem.addEventListener('click', () => showReportModal(report));
+    container.appendChild(reportItem);
+  });
+}
+
+function renderReportsList() {
+  const container = document.getElementById('reports-list');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  const filteredReports = getFilteredReports();
+  
+  filteredReports.forEach(report => {
+    const hazardType = appData.hazardTypes.find(t => t.id === report.type);
+    const reportCard = document.createElement('div');
+    reportCard.className = 'report-card';
+    reportCard.innerHTML = `
+      <div class="report-card-header">
+        <span class="report-id">${report.id}</span>
+        <span class="report-status ${report.status}">${report.status.toUpperCase()}</span>
+      </div>
+      <div class="report-meta">
+        <span class="report-meta-item">${hazardType ? hazardType.icon : ''} ${hazardType ? hazardType.name : 'Unknown'}</span>
+        <span class="report-meta-item">📍 ${report.location.name}</span>
+        <span class="report-meta-item">⚠️ ${report.severity.toUpperCase()}</span>
+        <span class="report-meta-item">🕒 ${formatTime(report.timestamp)}</span>
+      </div>
+      <div class="report-description">${report.description}</div>
+    `;
+    reportCard.addEventListener('click', () => showReportModal(report));
+    container.appendChild(reportCard);
+  });
+}
+
+function getFilteredReports() {
+  const searchTerm = document.getElementById('search-reports')?.value.toLowerCase() || '';
+  const statusFilter = document.getElementById('status-filter')?.value || '';
+  
+  return allReports.filter(report => {
+    const matchesSearch = !searchTerm || 
+      report.description.toLowerCase().includes(searchTerm) ||
+      report.location.name.toLowerCase().includes(searchTerm) ||
+      report.id.toLowerCase().includes(searchTerm);
     
-    container.innerHTML = appData.sampleReports.map(report => {
-        const hazardType = appData.hazardTypes.find(h => h.id === report.type);
-        const timeAgo = getTimeAgo(report.timestamp);
-        
-        return `
-            <div class="report-item" onclick="showReportDetails('${report.id}')">
-                <div class="report-info">
-                    <h4>${hazardType?.icon} ${hazardType?.name} - ${report.severity}</h4>
-                    <p><strong>Location:</strong> ${report.location.name}</p>
-                    <p><strong>Description:</strong> ${report.description}</p>
-                    <p><strong>Reporter:</strong> ${report.reporter} • ${timeAgo}</p>
-                </div>
-                <span class="report-status report-status--${report.status}">${report.status}</span>
-            </div>
-        `;
-    }).join('');
+    const matchesStatus = !statusFilter || report.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
 }
 
 function filterReports() {
-    const searchTerm = document.getElementById('search-reports')?.value.toLowerCase() || '';
-    const statusFilter = document.getElementById('status-filter')?.value || 'all';
-    
-    let filteredReports = appData.sampleReports;
-    
-    if (searchTerm) {
-        filteredReports = filteredReports.filter(report => 
-            report.description.toLowerCase().includes(searchTerm) ||
-            report.location.name.toLowerCase().includes(searchTerm)
-        );
-    }
-    
-    if (statusFilter !== 'all') {
-        filteredReports = filteredReports.filter(report => report.status === statusFilter);
-    }
-    
-    const container = document.getElementById('reports-list');
-    if (container) {
-        container.innerHTML = filteredReports.map(report => {
-            const hazardType = appData.hazardTypes.find(h => h.id === report.type);
-            const timeAgo = getTimeAgo(report.timestamp);
-            
-            return `
-                <div class="report-item" onclick="showReportDetails('${report.id}')">
-                    <div class="report-info">
-                        <h4>${hazardType?.icon} ${hazardType?.name} - ${report.severity}</h4>
-                        <p><strong>Location:</strong> ${report.location.name}</p>
-                        <p><strong>Description:</strong> ${report.description}</p>
-                        <p><strong>Reporter:</strong> ${report.reporter} • ${timeAgo}</p>
-                    </div>
-                    <span class="report-status report-status--${report.status}">${report.status}</span>
-                </div>
-            `;
-        }).join('');
-    }
+  if (currentView === 'verify') {
+    renderReportsList();
+  }
 }
 
-// Analytics
-function loadAnalyticsData() {
-    showNotification('Analytics data refreshed', 'info');
-}
-
-// Verification Queue
-function loadVerificationQueue() {
-    const container = document.getElementById('pending-reports');
-    if (!container) return;
-    
-    const pendingReports = appData.sampleReports.filter(report => report.status === 'pending');
-    
-    container.innerHTML = pendingReports.map(report => {
-        const hazardType = appData.hazardTypes.find(h => h.id === report.type);
-        
-        return `
-            <div class="verification-item">
-                <h4>${hazardType?.icon} ${hazardType?.name}</h4>
-                <p><strong>Location:</strong> ${report.location.name}</p>
-                <p><strong>Description:</strong> ${report.description}</p>
-                <p><strong>Severity:</strong> ${report.severity}</p>
-                <p><strong>Reporter:</strong> ${report.reporter}</p>
-                <div class="verification-actions">
-                    <button class="btn btn--primary" onclick="verifyReport('${report.id}', 'verified')">✅ Verify</button>
-                    <button class="btn btn--danger" onclick="verifyReport('${report.id}', 'dismissed')">❌ Dismiss</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function verifyReport(reportId, status) {
-    const report = appData.sampleReports.find(r => r.id === reportId);
-    if (report) {
-        report.status = status;
-        showNotification(`Report ${status}!`, 'success');
-        loadVerificationQueue();
-        renderRecentReports();
-    }
-}
-
-// Alert Management
-async function handleAlertBroadcast(e) {
-    e.preventDefault();
-    
-    if (!authToken) {
-        showNotification('Please login to broadcast alerts', 'error');
-        return;
-    }
-    
-    const alertData = {
-        type: document.getElementById('alert-type')?.value,
-        message: document.getElementById('alert-message')?.value,
-        regions: Array.from(document.getElementById('alert-regions')?.selectedOptions || []).map(o => o.value)
-    };
-    
-    if (!alertData.type || !alertData.message) {
-        showNotification('Please fill in all required fields', 'error');
-        return;
-    }
-    
-    try {
-        const response = await authenticatedFetch(`${API_BASE_URL}/alerts`, {
-            method: 'POST',
-            body: JSON.stringify(alertData)
-        });
-        
-        if (response.ok) {
-            showNotification('Alert broadcasted successfully!', 'success');
-            e.target.reset();
-            loadActiveAlerts();
-        } else {
-            const error = await response.json();
-            showNotification(error.error || 'Failed to broadcast alert', 'error');
-        }
-    } catch (error) {
-        showNotification('Network error. Please try again.', 'error');
-    }
-}
-
-function loadActiveAlerts() {
-    const container = document.getElementById('alerts-list');
-    if (!container) return;
-    
-    const sampleAlerts = [
-        {
-            id: 'A001',
-            type: 'warning',
-            message: 'High waves expected along Chennai coast. Avoid beach activities.',
-            regions: ['chennai'],
-            timestamp: '2025-09-13T14:00:00Z',
-            active: true
-        }
-    ];
-    
-    container.innerHTML = sampleAlerts.map(alert => `
-        <div class="alert-broadcast alert-broadcast--${alert.type}">
-            <h4>${alert.type.toUpperCase()}: ${alert.message}</h4>
-            <p><strong>Regions:</strong> ${alert.regions.join(', ')}</p>
-            <p><strong>Issued:</strong> ${getTimeAgo(alert.timestamp)}</p>
-            <button class="btn btn--secondary" onclick="deactivateAlert('${alert.id}')">Deactivate</button>
+function showReportModal(report) {
+  const modal = document.getElementById('report-modal');
+  const modalBody = document.getElementById('modal-body');
+  
+  if (!modal || !modalBody) return;
+  
+  const hazardType = appData.hazardTypes.find(t => t.id === report.type);
+  
+  modalBody.innerHTML = `
+    <div class="report-details">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Report ID</label>
+          <div>${report.id}</div>
         </div>
-    `).join('');
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <span class="report-status ${report.status}">${report.status.toUpperCase()}</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Hazard Type</label>
+          <div>${hazardType ? hazardType.icon : ''} ${hazardType ? hazardType.name : 'Unknown'}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Severity</label>
+          <div>${report.severity.toUpperCase()}</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Location</label>
+        <div>📍 ${report.location.name}</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Time Reported</label>
+        <div>🕒 ${formatDateTime(report.timestamp)}</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reporter</label>
+        <div>👤 ${report.reporter}</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <div>${report.description}</div>
+      </div>
+      ${report.images && report.images.length > 0 ? `
+        <div class="form-group">
+          <label class="form-label">Attachments</label>
+          <div>${report.images.map(img => `📎 ${img}`).join('<br>')}</div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+  
+  modal.classList.remove('hidden');
+  
+  // Setup verify/reject buttons
+  const verifyBtn = document.getElementById('verify-report-btn');
+  const rejectBtn = document.getElementById('reject-report-btn');
+  
+  if (verifyBtn) {
+    verifyBtn.onclick = () => {
+      report.status = 'verified';
+      updateStatistics();
+      renderReportsList();
+      renderRecentReports();
+      modal.classList.add('hidden');
+      showAlert('Report verified successfully!', 'success');
+    };
+  }
+  
+  if (rejectBtn) {
+    rejectBtn.onclick = () => {
+      report.status = 'rejected';
+      updateStatistics();
+      renderReportsList();
+      renderRecentReports();
+      modal.classList.add('hidden');
+      showAlert('Report rejected.', 'success');
+    };
+  }
 }
 
-function deactivateAlert(alertId) {
-    showNotification('Alert deactivated', 'info');
-    loadActiveAlerts();
-}
-
-// Modal Functions
-function showReportDetails(reportId) {
-    const report = appData.sampleReports.find(r => r.id === reportId);
-    if (!report) return;
-    
-    const hazardType = appData.hazardTypes.find(h => h.id === report.type);
-    const modal = document.getElementById('report-modal');
-    const modalBody = document.getElementById('modal-body');
-    
-    if (modalBody) {
-        modalBody.innerHTML = `
-            <div style="margin-bottom: 20px;">
-                <h4>${hazardType?.icon} ${hazardType?.name}</h4>
-                <p><strong>Severity:</strong> <span style="color: ${appData.severityLevels.find(s => s.id === report.severity)?.color}">${report.severity.toUpperCase()}</span></p>
-                <p><strong>Location:</strong> ${report.location.name}</p>
-                <p><strong>Coordinates:</strong> ${report.location.lat}, ${report.location.lng}</p>
-                <p><strong>Description:</strong> ${report.description}</p>
-                <p><strong>Reporter:</strong> ${report.reporter}</p>
-                <p><strong>Status:</strong> ${report.status}</p>
-                <p><strong>Submitted:</strong> ${new Date(report.timestamp).toLocaleString()}</p>
-            </div>
-            ${report.images && report.images.length > 0 ? `
-                <div>
-                    <h5>Attachments:</h5>
-                    <div style="display: flex; gap: 10px;">
-                        ${report.images.map(img => `<div style="width: 60px; height: 60px; background: #e0f2fe; border-radius: 8px; display: flex; align-items: center; justify-content: center;">🖼️</div>`).join('')}
-                    </div>
-                </div>
-            ` : ''}
-        `;
+function setupModalHandlers() {
+  const modal = document.getElementById('report-modal');
+  if (!modal) return;
+  
+  const closeButtons = modal.querySelectorAll('.modal-close');
+  
+  closeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+    });
+  });
+  
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.classList.add('hidden');
     }
-    
-    if (modal) modal.classList.remove('hidden');
+  });
+  
+  // Alert close handlers
+  document.querySelectorAll('.alert-close').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const alertElement = e.target.closest('.alert');
+      if (alertElement) {
+        alertElement.classList.add('hidden');
+      }
+    });
+  });
 }
 
-function closeModal() {
-    const modal = document.getElementById('report-modal');
-    if (modal) modal.classList.add('hidden');
+function updateStatistics() {
+  const totalReports = allReports.length;
+  const verifiedReports = allReports.filter(r => r.status === 'verified').length;
+  const highSeverity = allReports.filter(r => r.severity === 'high' || r.severity === 'critical').length;
+  
+  const totalElement = document.getElementById('total-reports');
+  const verifiedElement = document.getElementById('verified-reports');
+  const highSeverityElement = document.getElementById('high-severity');
+  const socialElement = document.getElementById('social-mentions');
+  
+  if (totalElement) totalElement.textContent = totalReports;
+  if (verifiedElement) verifiedElement.textContent = verifiedReports;
+  if (highSeverityElement) highSeverityElement.textContent = highSeverity;
+  if (socialElement) socialElement.textContent = '2.1k';
 }
 
-// Export Functions
-function exportReports() {
-    const csv = generateCSV(appData.sampleReports);
-    downloadCSV(csv, 'hazard_reports.csv');
-    showNotification('Reports exported successfully!', 'success');
+function updateDashboard() {
+  updateStatistics();
+  renderRecentReports();
 }
 
-function generateCSV(reports) {
-    const headers = ['ID', 'Type', 'Severity', 'Location', 'Description', 'Reporter', 'Status', 'Timestamp'];
-    const rows = reports.map(report => [
-        report.id,
-        report.type,
-        report.severity,
-        report.location.name,
-        report.description,
-        report.reporter,
-        report.status,
-        report.timestamp
-    ]);
-    
-    return [headers, ...rows].map(row => row.join(',')).join('\n');
-}
-
-function downloadCSV(csv, filename) {
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    window.URL.revokeObjectURL(url);
-}
-
-// Utility Functions
-function getTimeAgo(timestamp) {
-    const now = new Date();
-    const time = new Date(timestamp);
-    const diffMs = now - time;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
-}
-
-function showNotification(message, type = 'info') {
-    console.log(`📢 Notification (${type}):`, message);
-    
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        background: ${type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#3b82f6'};
-        color: white;
-        border-radius: 8px;
-        font-weight: 600;
-        z-index: 10000;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        transform: translateX(100%);
-        transition: transform 0.3s ease;
-        max-width: 300px;
-    `;
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.transform = 'translateX(0)';
-    }, 100);
-    
-    setTimeout(() => {
-        notification.style.transform = 'translateX(100%)';
-        setTimeout(() => {
-            if (document.body.contains(notification)) {
-                document.body.removeChild(notification);
+function initializeCharts() {
+  // Trend Chart
+  const trendCtx = document.getElementById('trend-chart');
+  if (trendCtx && !charts.trend) {
+    charts.trend = new Chart(trendCtx, {
+      type: 'line',
+      data: {
+        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        datasets: [{
+          label: 'Reports',
+          data: [2, 4, 3, 5, 2, 3, 6],
+          borderColor: '#1FB8CD',
+          backgroundColor: 'rgba(31, 184, 205, 0.1)',
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(0,0,0,0.1)'
             }
-        }, 300);
-    }, 3000);
-}
-
-// Sync offline reports when online
-function syncOfflineReports() {
-    if (offlineReports.length > 0 && navigator.onLine && authToken) {
-        console.log('🔵 Syncing offline reports...');
-        
-        offlineReports.forEach(async (report) => {
-            try {
-                const response = await authenticatedFetch(`${API_BASE_URL}/reports`, {
-                    method: 'POST',
-                    body: JSON.stringify(report)
-                });
-                
-                if (response.ok) {
-                    const syncedReport = await response.json();
-                    appData.sampleReports.unshift({
-                        ...syncedReport,
-                        id: syncedReport._id || 'R' + String(Date.now()).slice(-6),
-                        timestamp: syncedReport.createdAt || new Date().toISOString(),
-                        reporter: currentUser?.username || 'Unknown',
-                        offline: false
-                    });
-                }
-            } catch (error) {
-                console.log('Failed to sync offline report:', error);
+          },
+          x: {
+            grid: {
+              display: false
             }
-        });
-        
-        offlineReports = [];
-        localStorage.setItem('offlineReports', JSON.stringify(offlineReports));
-        showNotification(`Offline reports synced!`, 'success');
-        renderRecentReports();
-        renderReports();
-    }
+          }
+        }
+      }
+    });
+  }
 }
 
-// Online/Offline Status
-window.addEventListener('online', syncOfflineReports);
-window.addEventListener('offline', () => {
-    showNotification('You are offline. Reports will be saved locally.', 'warning');
-});
-
-// Auto-sync on login
-if (authToken && navigator.onLine) {
-    setTimeout(syncOfflineReports, 1000);
+function initializeAnalyticsCharts() {
+  // Platform Chart
+  const platformCtx = document.getElementById('platform-chart');
+  if (platformCtx && !charts.platform) {
+    charts.platform = new Chart(platformCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Twitter', 'Facebook', 'YouTube'],
+        datasets: [{
+          data: [1247, 892, 156],
+          backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom'
+          }
+        }
+      }
+    });
+  }
+  
+  // Sentiment Chart
+  const sentimentCtx = document.getElementById('sentiment-chart');
+  if (sentimentCtx && !charts.sentiment) {
+    charts.sentiment = new Chart(sentimentCtx, {
+      type: 'bar',
+      data: {
+        labels: ['Negative', 'Concerned', 'Neutral', 'Informational'],
+        datasets: [{
+          data: [45, 30, 15, 10],
+          backgroundColor: ['#DB4545', '#D2BA4C', '#5D878F', '#1FB8CD'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(0,0,0,0.1)'
+            }
+          },
+          x: {
+            grid: {
+              display: false
+            }
+          }
+        }
+      }
+    });
+  }
 }
 
-// Global debug function for testing
-window.testBackendDirectly = async function() {
-    try {
-        console.log('🔍 Testing backend directly...');
-        const response = await fetch('http://localhost:5000/test');
-        const data = await response.json();
-        console.log('✅ Direct backend test successful:', data);
-        alert('Backend is working! ' + JSON.stringify(data, null, 2));
-    } catch (error) {
-        console.error('❌ Direct backend test failed:', error);
-        alert('Backend test failed: ' + error.message);
-    }
-};
+function handleLanguageChange(e) {
+  const selectedLanguage = e.target.value;
+  const languageNames = {
+    'en': 'English',
+    'hi': 'हिंदी',
+    'ta': 'தமிழ்',
+    'te': 'తెలుగు'
+  };
+  showAlert(`Language changed to ${languageNames[selectedLanguage] || selectedLanguage}`, 'success');
+}
 
-// Debug info on console
-console.log('🚀 Ocean Hazard Platform - Frontend Loaded');
-console.log('📍 API Base URL:', API_BASE_URL);
-console.log('🔧 Debug mode enabled - Use testBackendDirectly() to test backend');
+function showAlert(message, type = 'success') {
+  const alertElement = document.getElementById(`${type}-alert`);
+  const messageElement = document.getElementById(`${type}-message`);
+  
+  if (alertElement && messageElement) {
+    messageElement.textContent = message;
+    alertElement.classList.remove('hidden');
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+      alertElement.classList.add('hidden');
+    }, 5000);
+  }
+}
+
+function formatTime(timestamp) {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString('en-IN', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    hour12: true 
+  });
+}
+
+function formatDateTime(timestamp) {
+  const date = new Date(timestamp);
+  return date.toLocaleString('en-IN', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+}
+
+// Simulate real-time updates
+function simulateRealTimeUpdates() {
+  setInterval(() => {
+    if (currentUser && Math.random() < 0.1) { // 10% chance every 30 seconds
+      // Simulate new report
+      const randomHazard = appData.hazardTypes[Math.floor(Math.random() * appData.hazardTypes.length)];
+      const randomSeverity = appData.severityLevels[Math.floor(Math.random() * appData.severityLevels.length)];
+      
+      const newReport = {
+        id: `R${String(allReports.length + 1).padStart(3, '0')}`,
+        type: randomHazard.id,
+        severity: randomSeverity.id,
+        location: { name: 'Auto-generated Location', lat: Math.random() * 30 + 8, lng: Math.random() * 30 + 68 },
+        description: 'Automatically generated report for demonstration',
+        timestamp: new Date().toISOString(),
+        reporter: 'System',
+        status: 'pending',
+        images: []
+      };
+      
+      allReports.unshift(newReport);
+      updateStatistics();
+      renderRecentReports();
+      
+      if (currentView === 'verify') {
+        renderReportsList();
+      }
+      
+      if (currentView === 'map') {
+        initializeMap();
+      }
+      
+      showAlert('New hazard report received!', 'success');
+    }
+  }, 30000); // Every 30 seconds
+}
+
+// Start real-time updates simulation
+setTimeout(simulateRealTimeUpdates, 5000); // Start after 5 seconds

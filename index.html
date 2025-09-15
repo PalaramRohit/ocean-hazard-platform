@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INCOIS - Ocean Hazard Reporting Platform</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Login/Signup Screen -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <h1>🌊 INCOIS</h1>
+                <p>Ocean Hazard Reporting Platform</p>
+            </div>
+
+            <!-- Login Form - Fixed -->
+<form id="login-form" class="auth-form active">
+    <h2>Login</h2>
+    <div class="form-group">
+        <label for="login-username" class="form-label">Username</label>
+        <input type="text" id="login-username" class="form-control" required autocomplete="username">
+    </div>
+    <div class="form-group">
+        <label for="login-password" class="form-label">Password</label>
+        <input type="password" id="login-password" class="form-control" required autocomplete="current-password">
+    </div>
+    <button type="submit" class="btn btn--primary btn--full-width">Login</button>
+    <p class="auth-switch">
+        Don't have an account? 
+        <a href="#" id="show-signup">Sign Up</a>
+    </p>
+</form>
+
+
+            <!-- Signup Form - With Role Selection -->
+            <form id="signup-form" class="auth-form">
+                <h2>Sign Up</h2>
+                <div class="form-group">
+                    <label for="signup-username" class="form-label">Username</label>
+                    <input type="text" id="signup-username" class="form-control" required>
+                    <small class="form-help">Must be 3-20 characters long</small>
+                </div>
+                <div class="form-group">
+                    <label for="signup-email" class="form-label">Email (Optional)</label>
+                    <input type="email" id="signup-email" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="signup-password" class="form-label">Password</label>
+                    <input type="password" id="signup-password" class="form-control" required>
+                    <small class="form-help">Must be at least 6 characters long</small>
+                </div>
+                <div class="form-group">
+                    <label for="signup-confirm-password" class="form-label">Confirm Password</label>
+                    <input type="password" id="signup-confirm-password" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-role" class="form-label">Role</label>
+                    <select id="signup-role" class="form-control" required>
+                        <option value="">Select Role</option>
+                        <option

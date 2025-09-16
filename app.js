@@ -61,23 +61,85 @@ const appData = {
   ]
 };
 
+// Import API Service
+import { authAPI, reportsAPI, alertsAPI } from './api.js';
+
 // Global State
 let currentUser = null;
 let currentView = 'dashboard';
-let allReports = [...appData.sampleReports];
-let charts = {};
+let allReports = [];
 
-// DOM Elements
-let loginScreen, mainApp, loginForm, currentRoleSpan, navButtons, views;
-
-// Initialize Application
-document.addEventListener('DOMContentLoaded', function() {
+// Start the application
+function init() {
+  console.log('Initializing application...');
+  
+  // Initialize DOM elements
   initializeDOM();
+  
+  // Set up the initial app state
   initializeApp();
+  
+  // Set up event listeners
   setupEventListeners();
-  populateFormOptions();
+  
+  // Check for active session
+  checkSession();
+  
+  // Initialize any UI components
+  initializeUI();
+  
+  console.log('Application initialized');
+}
+
+// Check for active session
+async function checkSession() {
+  try {
+    console.log('Checking for active session...');
+    const user = await authAPI.getCurrentUser();
+    if (user) {
+      console.log('Active session found:', user);
+      currentUser = user;
+      handleSuccessfulLogin(user);
+    } else {
+      console.log('No active session found');
+      showLoginScreen();
+    }
+  } catch (error) {
+    console.error('Error checking session:', error);
+    showLoginScreen();
+  }
+}
+
+// Show login screen
+function showLoginScreen() {
+  console.log('Showing login screen');
+  if (loginScreen && mainApp) {
+    loginScreen.style.display = 'flex';
+    mainApp.style.display = 'none';
+    loginScreen.classList.remove('hidden');
+    mainApp.classList.add('hidden');
+  }
+}
+
+// Initialize UI components
+function initializeUI() {
+  console.log('Initializing UI components...');
+  
+  // Initialize any charts or other UI components
+  initializeCharts();
+  
+  // Set up any initial data
   updateStatistics();
-});
+  
+  console.log('UI components initialized');
+}
+
+// Start the application when the DOM is fully loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
 function initializeDOM() {
   loginScreen = document.getElementById('login-screen');
@@ -177,175 +239,483 @@ function setupEventListeners() {
   }
 }
 
-function handleLogin(e) {
+// Show notification function
+function showNotification(message, type = 'success') {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.textContent = message;
+  
+  // Add to DOM
+  document.body.appendChild(notification);
+  
+  // Remove after 5 seconds
+  setTimeout(() => {
+    notification.remove();
+  }, 5000);
+}
+
+// Handle login form submission
+const loginForm = document.getElementById('login-form');
+if (loginForm) {
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const role = document.getElementById('user-role').value;
+    
+    // Basic validation
+    if (!username || !password || !role) {
+      showNotification('Please fill in all fields', 'error');
+      return;
+    }
+    
+    try {
+      // Show loading state
+      const loginBtn = loginForm.querySelector('button[type="submit"]');
+      const originalBtnText = loginBtn.textContent;
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = '<span class="spinner"></span> Signing in...';
+      
+      // Prepare the login data
+      const loginData = { 
+        username: username.toLowerCase().trim(),
+        password: password,
+        role: role
+      };
+
+      console.log('Attempting login with:', { username: loginData.username, role: loginData.role });
+      
+      try {
+        // Call login API
+        const response = await fetch('http://localhost:5000/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify(loginData)
+        });
+        
+        const data = await response.json();
+        console.log('Login response:', { status: response.status, data });
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'Login failed. Please check your credentials.');
+        }
+        
+        if (!data.user) {
+          throw new Error('Invalid response from server. Please try again.');
+        }
+        
+        // Store user data in localStorage
+        const userData = {
+          id: data.user._id || data.user.id,
+          name: data.user.name || data.user.username,
+          username: data.user.username,
+          email: data.user.email,
+          role: data.user.role,
+          token: data.token
+        };
+        
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        // Update UI with user information
+        updateUserUI(userData);
+        
+        // Show success message
+        showNotification(`Welcome, ${userData.name || userData.username}!`, 'success');
+        
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          window.location.href = 'index.html';
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Login error:', error);
+        showNotification(error.message || 'Login failed. Please try again.', 'error');
+        throw error; // Re-throw to be caught by the outer catch
+      }
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      showNotification(error.message || 'Login failed. Please check your credentials and try again.', 'error');
+    } finally {
+      // Reset button state
+      const loginBtn = loginForm.querySelector('button[type="submit"]');
+      if (loginBtn) {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Sign In';
+      }
+    }
+  });
+}
+
+// Update UI with user information
+function updateUserUI(user) {
+  const usernameElement = document.getElementById('current-username');
+  const roleElement = document.getElementById('current-role');
+  
+  if (usernameElement) {
+    usernameElement.textContent = user.name || user.username;
+  }
+  
+  if (roleElement) {
+    roleElement.textContent = user.role;
+    // Add role-specific class for styling
+    roleElement.className = 'role-badge';
+    roleElement.classList.add(`role-${user.role}`);
+  }
+}
+
+// Check if user is already logged in
+document.addEventListener('DOMContentLoaded', () => {
+  const user = JSON.parse(localStorage.getItem('user'));
+  const loginScreen = document.getElementById('login-screen');
+  const mainApp = document.getElementById('main-app');
+  
+  if (user && loginScreen && mainApp) {
+    loginScreen.style.display = 'none';
+    mainApp.style.display = 'block';
+    
+    // Update UI with user information
+    updateUserUI(user);
+    
+    // Update UI based on user role
+    updateUIForRole(user.role);
+  }
+});
+
+// Show notification message
+function showNotification(message, type = 'info') {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.innerHTML = `
+    <span class="notification-message">${message}</span>
+    <button class="notification-close">&times;</button>
+  `;
+  
+  // Add to notification container
+  const container = document.getElementById('notification-container') || createNotificationContainer();
+  container.appendChild(notification);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    notification.classList.add('fade-out');
+    setTimeout(() => notification.remove(), 300);
+  }, 5000);
+  
+  // Close button handler
+  const closeBtn = notification.querySelector('.notification-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      notification.classList.add('fade-out');
+      setTimeout(() => notification.remove(), 300);
+    });
+  }
+}
+
+// Create notification container if it doesn't exist
+function createNotificationContainer() {
+  const container = document.createElement('div');
+  container.id = 'notification-container';
+  document.body.appendChild(container);
+  return container;
+}
+
+// Show/hide loading state
+function showLoading(isLoading) {
+  const loginBtn = document.querySelector('#login-form button[type="submit"]');
+  if (!loginBtn) return;
+  
+  if (isLoading) {
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = '<span class="spinner"></span> Signing in...';
+  } else {
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = 'Sign In';
+  }
+}
+
+// API Configuration
+const API_CONFIG = {
+  BASE_URL: 'http://localhost:5000/api',
+  ENDPOINTS: {
+    AUTH: {
+      LOGIN: '/auth/login',
+      REGISTER: '/auth/register',
+      ME: '/auth/me'
+    }
+  },
+  getUrl(endpoint) {
+    return `${this.BASE_URL}${endpoint}`;
+  }
+};
+
+async function handleLogin(e) {
   e.preventDefault();
-  const username = document.getElementById('username').value;
+  
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
   const role = document.getElementById('user-role').value;
   
-  if (username && role) {
-    currentUser = { username, role };
+  if (!username || !password || !role) {
+    showNotification('Please fill in all fields', 'error');
+    return;
+  }
+
+  try {
+    showLoading(true);
     
-    // Hide login screen and show main app
-    if (loginScreen && mainApp) {
+    // Call login API
+    const response = await fetch(API_CONFIG.getUrl(API_CONFIG.ENDPOINTS.AUTH.LOGIN), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify({ 
+        username: username.toLowerCase(), 
+        password: password,
+        role: role
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Login failed. Please check your credentials.');
+    }
+    
+    // Store user data
+    localStorage.setItem('user', JSON.stringify(data.user));
+    localStorage.setItem('token', data.token);
+    
+    // Update UI
+    updateUserUI(data.user);
+    showNotification('Login successful!', 'success');
+    
+    // Redirect to dashboard
+    setTimeout(() => {
+      window.location.href = 'dashboard.html';
+    }, 1000);
+    
+  } catch (error) {
+    console.error('Login error:', error);
+    showNotification(error.message || 'Login failed. Please try again.', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+function updateUserUI(user) {
+  if (!user) return;
+  
+  // Update username in header
+  const usernameElement = document.getElementById('current-username');
+  if (usernameElement) {
+    usernameElement.textContent = user.name || user.username;
+  }
+  
+  // Update role badge
+  const roleElement = document.getElementById('current-role');
+  if (roleElement) {
+    roleElement.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+    roleElement.className = 'role-badge';
+    roleElement.classList.add(`role-${user.role}`);
+  }
+  
+  // Show user info section
+  const userInfoElement = document.querySelector('.user-info');
+  if (userInfoElement) {
+    userInfoElement.style.display = 'flex';
+  }
+}
+
+function handleSuccessfulLogin(user) {
+  console.log('Handling successful login for user:', user.username, 'with role:', user.role);
+  
+  try {
+    // Update current user in memory
+    currentUser = user;
+    
+    // Update UI state
+    console.log('Updating UI state after login');
+    if (loginScreen) {
       loginScreen.style.display = 'none';
-      mainApp.style.display = 'flex';
       loginScreen.classList.add('hidden');
+    }
+    
+    if (mainApp) {
+      mainApp.style.display = 'block';
       mainApp.classList.remove('hidden');
     }
     
-    // Set role-based styling
-    document.body.dataset.role = role;
+    // Update user info in header
     if (currentRoleSpan) {
-      currentRoleSpan.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+      currentRoleSpan.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
     }
     
-    // Initialize dashboard
-    setTimeout(() => {
+    // Update UI based on user role
+    console.log('Updating UI for role:', user.role);
+    updateUIForRole(user.role);
+    
+    // Initialize application data
+    console.log('Initializing application data...');
+    Promise.all([
+      loadUserData(),
+      initializeMap(),
+      initializeCharts()
+    ]).then(() => {
+      console.log('Application data loaded, switching to dashboard');
       switchView('dashboard');
-      updateDashboard();
-      renderRecentReports();
-      initializeCharts();
-      showAlert(`Welcome, ${username}! Logged in as ${role}.`, 'success');
-    }, 100);
+      
+      // Show welcome message
+      showAlert(`Welcome back, ${user.name || user.username}!`, 'success');
+      
+    }).catch(error => {
+      console.error('Error initializing application:', error);
+      // Still switch to dashboard even if some data fails to load
+      switchView('dashboard');
+      showAlert('Welcome! Some features may be limited due to loading issues.', 'warning');
+    });
+    
+  } catch (error) {
+    console.error('Error in handleSuccessfulLogin:', error);
+    showAlert('An error occurred while initializing your session. Please refresh the page and try again.', 'error');
   }
 }
 
-function handleLogout() {
-  currentUser = null;
-  document.body.removeAttribute('data-role');
-  
-  // Show login screen and hide main app
-  if (loginScreen && mainApp) {
-    loginScreen.style.display = 'flex';
-    mainApp.style.display = 'none';
+async function loadUserData() {
+  try {
+    // Load reports
+    const reports = await reportsAPI.getReports();
+    allReports = reports;
+    renderRecentReports();
+    updateStatistics();
+    
+    // Load alerts if user is official
+    if (currentUser.role === 'official' || currentUser.role === 'analyst') {
+      const alerts = await alertsAPI.getAlerts();
+      // Update alerts in the UI
+    }
+  } catch (error) {
+    console.error('Error loading user data:', error);
+    showAlert('Error loading data. Please refresh the page.', 'error');
+  }
+}
+
+async function handleLogout() {
+  try {
+    await authAPI.logout();
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    // Reset user state
+    currentUser = null;
+    allReports = [];
+    
+    // Reset UI
+    document.getElementById('login-form').reset();
+    
+    // Show login screen
     loginScreen.classList.remove('hidden');
     mainApp.classList.add('hidden');
+    
+    // Reset any active views
+    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    
+    // Show logout message
+    showAlert('You have been logged out', 'info');
   }
-  
-  // Reset form
-  if (loginForm) {
-    loginForm.reset();
-  }
-  
-  showAlert('Logged out successfully!', 'success');
 }
 
 function switchView(viewName) {
+  console.log('Switching to view:', viewName);
+  
   // Update navigation
+  console.log('Updating navigation buttons');
   navButtons.forEach(btn => {
-    btn.classList.remove('active');
-    if (btn.dataset.view === viewName) {
-      btn.classList.add('active');
-    }
+    const isActive = btn.dataset.view === viewName;
+    console.log(`Button ${btn.dataset.view}: ${isActive ? 'active' : 'inactive'}`);
+    btn.classList.toggle('active', isActive);
   });
   
   // Update views
+  console.log('Updating view visibility');
   views.forEach(view => {
-    view.classList.remove('active');
-    if (view.id === `${viewName}-view`) {
-      view.classList.add('active');
-    }
+    const isTargetView = view.id === `${viewName}-view`;
+    console.log(`View ${view.id}: ${isTargetView ? 'showing' : 'hiding'}`);
+    view.classList.toggle('active', isTargetView);
   });
   
   currentView = viewName;
+  console.log('Current view set to:', currentView);
   
   // Initialize specific view functionality
+  console.log('Initializing view-specific functionality');
   if (viewName === 'map') {
+    console.log('Initializing map...');
     setTimeout(() => initializeMap(), 100);
   } else if (viewName === 'verify') {
+    console.log('Rendering reports list...');
     setTimeout(() => renderReportsList(), 100);
   } else if (viewName === 'analytics') {
+    console.log('Initializing analytics charts...');
     setTimeout(() => initializeAnalyticsCharts(), 100);
+  } else if (viewName === 'dashboard') {
+    console.log('Initializing dashboard...');
+    updateDashboard();
   }
+  
+  console.log('View switch complete');
 }
 
-function populateFormOptions() {
-  // Populate hazard types
-  const hazardSelect = document.getElementById('hazard-type');
-  const hazardFilter = document.getElementById('hazard-filter');
-  
-  if (hazardSelect) {
-    appData.hazardTypes.forEach(type => {
-      const option = document.createElement('option');
-      option.value = type.id;
-      option.textContent = `${type.icon} ${type.name}`;
-      hazardSelect.appendChild(option);
-    });
-  }
-  
-  if (hazardFilter) {
-    appData.hazardTypes.forEach(type => {
-      const option = document.createElement('option');
-      option.value = type.id;
-      option.textContent = `${type.icon} ${type.name}`;
-      hazardFilter.appendChild(option);
-    });
-  }
-  
-  // Populate severity levels
-  const severitySelect = document.getElementById('severity-level');
-  const severityFilter = document.getElementById('severity-filter');
-  
-  if (severitySelect) {
-    appData.severityLevels.forEach(level => {
-      const option = document.createElement('option');
-      option.value = level.id;
-      option.textContent = level.name;
-      severitySelect.appendChild(option);
-    });
-  }
-  
-  if (severityFilter) {
-    appData.severityLevels.forEach(level => {
-      const option = document.createElement('option');
-      option.value = level.id;
-      option.textContent = level.name;
-      severityFilter.appendChild(option);
-    });
-  }
-}
-
-function handleReportSubmit(e) {
+async function handleReportSubmit(e) {
   e.preventDefault();
   
-  const hazardType = document.getElementById('hazard-type')?.value;
-  const severityLevel = document.getElementById('severity-level')?.value;
-  const location = document.getElementById('location-input')?.value;
-  const description = document.getElementById('hazard-description')?.value;
-  const files = document.getElementById('hazard-media')?.files;
-  
-  if (!hazardType || !severityLevel || !location || !description) {
-    showAlert('Please fill all required fields!', 'error');
-    return;
-  }
-  
-  // Create new report
-  const newReport = {
-    id: `R${String(allReports.length + 1).padStart(3, '0')}`,
-    type: hazardType,
-    severity: severityLevel,
-    location: { name: location, lat: Math.random() * 30 + 8, lng: Math.random() * 30 + 68 },
-    description: description,
-    timestamp: new Date().toISOString(),
-    reporter: currentUser?.username || 'Anonymous',
+  const formData = new FormData(e.target);
+  const reportData = {
+    type: formData.get('hazard-type'),
+    severity: formData.get('severity'),
+    location: {
+      name: formData.get('location-name'),
+      lat: parseFloat(formData.get('latitude')),
+      lng: parseFloat(formData.get('longitude'))
+    },
+    description: formData.get('description'),
     status: 'pending',
-    images: files ? Array.from(files).map(file => file.name) : []
+    // Files would need to be handled separately with FormData
   };
   
-  allReports.unshift(newReport);
-  
-  // Reset form
-  e.target.reset();
-  const filePreview = document.getElementById('file-preview');
-  if (filePreview) {
-    filePreview.innerHTML = '';
+  try {
+    showLoading(true);
+    const newReport = await reportsAPI.createReport(reportData);
+    
+    // Add to local state
+    allReports.unshift(newReport);
+    
+    // Update UI
+    renderRecentReports();
+    updateStatistics();
+    
+    // Reset form
+    e.target.reset();
+    
+    // Show success message
+    showAlert('Hazard report submitted successfully!', 'success');
+    
+    // Switch back to dashboard
+    switchView('dashboard');
+  } catch (error) {
+    console.error('Error submitting report:', error);
+    showAlert(error.message || 'Failed to submit report. Please try again.', 'error');
+  } finally {
+    showLoading(false);
   }
-  
-  // Update UI
-  updateStatistics();
-  renderRecentReports();
-  
-  showAlert('Hazard report submitted successfully!', 'success');
 }
 
 function getCurrentLocation() {
@@ -864,6 +1234,108 @@ function simulateRealTimeUpdates() {
       showAlert('New hazard report received!', 'success');
     }
   }, 30000); // Every 30 seconds
+}
+
+function updateUIForRole(role) {
+  console.log('Updating UI for role:', role);
+  
+  if (!role) {
+    console.error('No role provided to updateUIForRole');
+    return;
+  }
+  
+  // Update navigation buttons based on role
+  document.querySelectorAll('.nav-item').forEach(item => {
+    try {
+      const requiredRoles = item.dataset.requiredRole?.split(' ') || [];
+      const shouldShow = requiredRoles.includes(role) || requiredRoles.includes('all');
+      item.style.display = shouldShow ? 'block' : 'none';
+      
+      // Enable/disable buttons based on role
+      const button = item.querySelector('button');
+      if (button) {
+        button.disabled = !shouldShow;
+        button.classList.toggle('disabled', !shouldShow);
+      }
+    } catch (error) {
+      console.error('Error updating nav item:', item, error);
+    }
+  });
+  
+  // Update views based on role
+  document.querySelectorAll('.view').forEach(view => {
+    try {
+      const viewRoles = view.dataset.role?.split(' ') || [];
+      const isActive = view.classList.contains('active');
+      const shouldShow = viewRoles.includes(role) || viewRoles.includes('all');
+      
+      view.style.display = shouldShow && isActive ? 'block' : 'none';
+      
+      // If current view is not accessible, switch to dashboard
+      if (isActive && !shouldShow) {
+        console.log(`Current view not accessible for role ${role}, switching to dashboard`);
+        switchView('dashboard');
+      }
+    } catch (error) {
+      console.error('Error updating view:', view, error);
+    }
+  });
+  
+  // Update role-specific UI elements
+  updateRoleSpecificUI(role);
+  
+  // Update any role-based dashboard elements
+  updateDashboardForRole(role);
+  
+  console.log('UI updated for role:', role);
+}
+
+function updateRoleSpecificUI(role) {
+  // Update elements with data-role attributes
+  document.querySelectorAll('[data-role]').forEach(element => {
+    const elementRoles = element.dataset.role.split(' ');
+    const shouldShow = elementRoles.includes(role) || elementRoles.includes('all');
+    element.style.display = shouldShow ? '' : 'none';
+  });
+  
+  // Update elements with data-required-role attributes
+  document.querySelectorAll('[data-required-role]').forEach(element => {
+    const requiredRoles = element.dataset.requiredRole.split(' ');
+    const hasAccess = requiredRoles.includes(role) || requiredRoles.includes('all');
+    
+    if (element.tagName === 'BUTTON') {
+      element.disabled = !hasAccess;
+      element.classList.toggle('disabled', !hasAccess);
+    } else if (element.tagName === 'A') {
+      if (hasAccess) {
+        element.removeAttribute('disabled');
+        element.style.pointerEvents = 'auto';
+        element.style.opacity = '1';
+      } else {
+        element.setAttribute('disabled', 'true');
+        element.style.pointerEvents = 'none';
+        element.style.opacity = '0.5';
+      }
+    } else {
+      element.style.display = hasAccess ? '' : 'none';
+    }
+  });
+}
+
+function updateDashboardForRole(role) {
+  const dashboardTitle = document.querySelector('#dashboard-view h2');
+  if (dashboardTitle) {
+    const roleDisplay = role.charAt(0).toUpperCase() + role.slice(1);
+    dashboardTitle.textContent = `${roleDisplay} Dashboard`;
+  }
+  
+  // Update any role-specific dashboard widgets
+  const roleWidgets = document.querySelectorAll(`[data-role-widget]`);
+  roleWidgets.forEach(widget => {
+    const widgetRoles = widget.dataset.roleWidget.split(' ');
+    const shouldShow = widgetRoles.includes(role) || widgetRoles.includes('all');
+    widget.style.display = shouldShow ? 'block' : 'none';
+  });
 }
 
 // Start real-time updates simulation

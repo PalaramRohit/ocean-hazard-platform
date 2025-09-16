@@ -7,13 +7,19 @@ console.log('Starting server...');
 
 const app = express();
 
-// Enhanced CORS configuration
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+// CORS configuration for development
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 app.use(express.json());
 
@@ -31,7 +37,8 @@ app.get('/test', (req, res) => {
 });
 
 // MongoDB connection
-mongoose.connect('mongodb://localhost:27017/oceanhazard')
+mongoose
+  .connect(process.env.MONGO_URI || 'mongodb://localhost:27017/oceanhazard')
   .then(() => console.log('✅ MongoDB connected'))
   .catch((err) => console.log('❌ MongoDB error:', err.message));
 
@@ -39,9 +46,13 @@ mongoose.connect('mongodb://localhost:27017/oceanhazard')
 try {
   const authRoutes = require('./routes/auth');
   const socialRoutes = require('./routes/social');
+  const reportsRoutes = require('./routes/reports');
+  const alertsRoutes = require('./routes/alerts');
   
   app.use('/api/auth', authRoutes);
   app.use('/api/social', socialRoutes);
+  app.use('/api/reports', reportsRoutes);
+  app.use('/api/alerts', alertsRoutes);
   
   console.log('✅ Routes loaded successfully');
 } catch (error) {
@@ -55,11 +66,11 @@ app.use((err, req, res, next) => {
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.originalUrl} not found` });
 });
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`🔗 Test URL: http://localhost:${PORT}/test`);

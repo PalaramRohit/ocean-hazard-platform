@@ -18,23 +18,27 @@
             <form id="login-form" class="login-form">
                 <div class="form-group">
                     <label for="username" class="form-label">Username</label>
-                    <input type="text" id="username" class="form-control" required>
+                    <input type="text" id="username" class="form-control" placeholder="Enter your username" required>
+                    <div class="form-hint">Example: johndoe, coastal_guard, analyst_1</div>
                 </div>
                 <div class="form-group">
                     <label for="password" class="form-label">Password</label>
-                    <input type="password" id="password" class="form-control" required>
+                    <input type="password" id="password" class="form-control" placeholder="Enter your password" required>
                 </div>
                 <div class="form-group">
                     <label for="user-role" class="form-label">Role</label>
                     <select id="user-role" class="form-control" required>
-                        <option value="">Select Role</option>
-                        <option value="citizen">Citizen</option>
-                        <option value="official">Official</option>
-                        <option value="analyst">Analyst</option>
+                        <option value="">-- Select your role --</option>
+                        <option value="citizen">Citizen - Report hazards and view alerts</option>
+                        <option value="official">Official - Manage and respond to reports</option>
+                        <option value="analyst">Analyst - View analytics and trends</option>
                     </select>
                 </div>
                 <button type="submit" class="btn btn--primary btn--full-width">Login</button>
-                <p class="login-demo-text">Demo credentials: Use any username/password with your selected role</p>
+                <div class="login-actions">
+                    <p class="login-demo-text">Demo credentials: Use any username/password with your selected role</p>
+                    <p class="signup-link">Don't have an account? <a href="signup.html">Sign up</a></p>
+                </div>
             </form>
         </div>
     </div>
@@ -46,7 +50,10 @@
             <div class="header-content">
                 <div class="header-left">
                     <h1 class="app-title">🌊 INCOIS Ocean Hazard Platform</h1>
-                    <span id="current-role" class="role-badge"></span>
+                    <div class="user-info">
+                        <span id="current-username" class="username"></span>
+                        <span id="current-role" class="role-badge"></span>
+                    </div>
                 </div>
                 <div class="header-right">
                     <select id="language-selector" class="form-control language-selector">
@@ -62,55 +69,117 @@
 
         <!-- Navigation -->
         <nav class="app-nav">
-            <button class="nav-btn active" data-view="dashboard">📊 Dashboard</button>
-            <button class="nav-btn" data-view="map">🗺️ Map View</button>
-            <button class="nav-btn citizen-only" data-view="report">📝 Report Hazard</button>
-            <button class="nav-btn official-only analyst-only" data-view="verify">✅ Verify Reports</button>
-            <button class="nav-btn analyst-only" data-view="analytics">📈 Social Analytics</button>
-            <button class="nav-btn official-only" data-view="alerts">🚨 Alerts</button>
+            <div class="nav-item" data-required-role="all">
+                <button class="nav-btn active" data-view="dashboard">📊 Dashboard</button>
+            </div>
+            <div class="nav-item" data-required-role="all">
+                <button class="nav-btn" data-view="map">🗺️ Map View</button>
+            </div>
+            <div class="nav-item" data-required-role="citizen">
+                <button class="nav-btn" data-view="report">📝 Report Hazard</button>
+            </div>
+            <div class="nav-item" data-required-role="official analyst">
+                <button class="nav-btn" data-view="verify">✅ Verify Reports</button>
+            </div>
+            <div class="nav-item" data-required-role="analyst">
+                <button class="nav-btn" data-view="analytics">📈 Social Analytics</button>
+            </div>
+            <div class="nav-item" data-required-role="official">
+                <button class="nav-btn" data-view="alerts">🚨 Alerts</button>
+            </div>
         </nav>
 
         <!-- Main Content -->
         <main class="app-main">
             <!-- Dashboard View -->
-            <div id="dashboard-view" class="view active">
-                <div class="dashboard-grid">
-                    <div class="dashboard-card">
-                        <h3>Recent Reports</h3>
-                        <div id="recent-reports" class="recent-reports"></div>
-                    </div>
-                    <div class="dashboard-card">
-                        <h3>Statistics</h3>
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <div class="stat-value" id="total-reports">12</div>
-                                <div class="stat-label">Total Reports</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value" id="verified-reports">8</div>
-                                <div class="stat-label">Verified</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value" id="high-severity">3</div>
-                                <div class="stat-label">High Severity</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value" id="social-mentions">2.1k</div>
-                                <div class="stat-label">Social Mentions</div>
-                            </div>
+            <div id="dashboard-view" class="view active" data-role="all">
+                <h2 class="dashboard-title">Dashboard</h2>
+                
+                <!-- Citizen Dashboard -->
+                <div class="dashboard-section" data-role="citizen">
+                    <h3>Your Recent Reports</h3>
+                    <div id="citizen-reports" class="recent-reports">
+                        <!-- Will be populated by JavaScript -->
+                        <div class="empty-state">
+                            <p>You haven't submitted any reports yet.</p>
+                            <button class="btn btn--primary" data-view="report">Report a Hazard</button>
                         </div>
                     </div>
-                    <div class="dashboard-card full-width">
-                        <h3>Hazard Reports Trend</h3>
+                </div>
+                
+                <!-- Official Dashboard -->
+                <div class="dashboard-section" data-role="official">
+                    <h3>Reports Needing Attention</h3>
+                    <div id="pending-reports" class="recent-reports">
+                        <!-- Will be populated by JavaScript -->
+                        <div class="empty-state">
+                            <p>No reports require attention at this time.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Analyst Dashboard -->
+                <div class="dashboard-section" data-role="analyst">
+                    <h3>Analytics Overview</h3>
+                    <div class="analytics-overview">
+                        <div class="analytics-metric">
+                            <div class="metric-value" id="total-reports">0</div>
+                            <div class="metric-label">Total Reports</div>
+                        </div>
+                        <div class="analytics-metric">
+                            <div class="metric-value" id="verified-reports">0</div>
+                            <div class="metric-label">Verified</div>
+                        </div>
+                        <div class="analytics-metric">
+                            <div class="metric-value" id="high-severity">0</div>
+                            <div class="metric-label">High Severity</div>
+                        </div>
+                        <div class="analytics-metric">
+                            <div class="metric-value" id="social-mentions">0</div>
+                            <div class="metric-label">Social Mentions</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Common Dashboard Elements -->
+                <div class="dashboard-grid">
+                    <!-- Recent Activity -->
+                    <div class="dashboard-card" data-role-widget="all">
+                        <h3>Recent Activity</h3>
+                        <div id="recent-activity" class="recent-activity">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <!-- Hazard Map -->
+                    <div class="dashboard-card" data-role-widget="all">
+                        <h3>Hazard Map</h3>
+                        <div id="mini-map" class="mini-map">
+                            <!-- Will be populated by JavaScript -->
+                            <div class="map-placeholder">Loading map...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Trends Chart -->
+                    <div class="dashboard-card full-width" data-role-widget="analyst official">
+                        <div class="card-header">
+                            <h3>Hazard Reports Trend</h3>
+                            <div class="time-filter">
+                                <button class="btn btn--sm btn--outline active" data-period="7d">7d</button>
+                                <button class="btn btn--sm btn--outline" data-period="30d">30d</button>
+                                <button class="btn btn--sm btn--outline" data-period="90d">90d</button>
+                            </div>
+                        </div>
                         <div class="chart-container" style="position: relative; height: 300px;">
                             <canvas id="trend-chart"></canvas>
                         </div>
                     </div>
                 </div>
+                </div>
             </div>
 
             <!-- Map View -->
-            <div id="map-view" class="view">
+            <div id="map-view" class="view" data-role="all">
                 <div class="map-controls">
                     <div class="filter-controls">
                         <select id="hazard-filter" class="form-control">
@@ -135,7 +204,7 @@
             </div>
 
             <!-- Report Hazard View -->
-            <div id="report-view" class="view citizen-only">
+            <div id="report-view" class="view" data-role="citizen">
                 <div class="report-container">
                     <h2>Report Ocean Hazard</h2>
                     <form id="hazard-report-form" class="hazard-form">
@@ -178,7 +247,7 @@
             </div>
 
             <!-- Verify Reports View -->
-            <div id="verify-view" class="view official-only analyst-only">
+            <div id="verify-view" class="view" data-role="official analyst">
                 <div class="verify-container">
                     <h2>Verify Reports</h2>
                     <div class="verify-controls">
@@ -195,7 +264,7 @@
             </div>
 
             <!-- Social Analytics View -->
-            <div id="analytics-view" class="view analyst-only">
+            <div id="analytics-view" class="view" data-role="analyst">
                 <div class="analytics-container">
                     <h2>Social Media Analytics</h2>
                     <div class="analytics-grid">
@@ -246,7 +315,7 @@
             </div>
 
             <!-- Alerts View -->
-            <div id="alerts-view" class="view official-only">
+            <div id="alerts-view" class="view" data-role="official">
                 <div class="alerts-container">
                     <h2>Emergency Alerts</h2>
                     <div class="alert-actions">
@@ -311,6 +380,8 @@
         <button class="alert-close">&times;</button>
     </div>
 
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
+    <script src="api.js"></script>
+    <script src="app-enhancements.js"></script>
 </body>
 </html>

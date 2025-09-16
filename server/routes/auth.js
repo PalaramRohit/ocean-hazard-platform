@@ -4,50 +4,85 @@ const User = require('../models/User');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
-// Register new user - Updates Database
+// Register new user
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, role } = req.body;
+    const { name, username, email, password, role } = req.body;
     
-    // Validation
-    if (!username || !password || !role) {
-      return res.status(400).json({ error: 'Username, password, and role are required' });
-    }
-    
-    if (username.length < 3 || username.length > 20) {
-      return res.status(400).json({ error: 'Username must be 3-20 characters long' });
-    }
-    
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
-    }
-    
-    // Check if user already exists in database
-    const existingUser = await User.findOne({ username: username.toLowerCase() });
-    if (existingUser) {
+    // Basic validation
+    if (!name || !username || !email || !password || !role) {
       return res.status(400).json({ 
-        error: 'Username already exists. Please choose a different username.' 
+        success: false,
+        message: 'All fields are required' 
       });
     }
     
-    // Create new user and save to database
-    const user = new User({ 
-      username: username.toLowerCase().trim(), 
-      email: email ? email.toLowerCase().trim() : undefined, 
-      password, 
-      role 
+    // Check if username already exists
+    const existingUsername = await User.findOne({ 
+      username: username.toLowerCase() 
     });
     
-    await user.save(); // This updates the database
-    console.log(`New user registered: ${username} with role: ${role}`);
+    if (existingUsername) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Username already exists' 
+      });
+    }
     
-    res.status(201).json({ 
-      message: 'Account created successfully! Please login with your credentials.',
+    // Check if email already exists
+    const existingEmail = await User.findOne({ 
+      email: email.toLowerCase() 
+    });
+    
+    if (existingEmail) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Email already registered' 
+      });
+    }
+    
+    // Create new user
+    const user = new User({
+      name: name.trim(),
+      username: username.toLowerCase().trim(),
+      email: email.toLowerCase().trim(),
+      password,
+      role
+    });
+    
+    // Save user to database
+    await user.save();
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    // Set HTTP-only cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+    
+    // Log the registration
+    console.log(`New user registered: ${username} (${role})`);
+    
+    // Return success response
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful',
       user: {
         id: user._id,
+        name: user.name,
         username: user.username,
+        email: user.email,
         role: user.role
-      }
+      },
+      token // For client-side storage if needed
     });
   } catch (err) {
     console.error('Registration error:', err);

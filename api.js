@@ -24,23 +24,42 @@ async function handleResponse(response) {
 }
 
 // Common headers for all requests
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Accept': 'application/json',
-});
+const getHeaders = () => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+  
+  // Add authorization header if token exists
+  const token = localStorage.getItem('token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
+};
 
 // Auth API
-export const authAPI = {
+const authAPI = {
   async login(username, password, role) {
     console.log('Attempting login with:', { username, role });
     try {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
-        headers: getHeaders(),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({ username, password, role }),
         credentials: 'include'
       });
       const data = await handleResponse(response);
+      
+      // Store token in localStorage if provided
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+      
       console.log('Login successful:', data);
       return data;
     } catch (error) {
@@ -50,33 +69,56 @@ export const authAPI = {
   },
   
   async logout() {
-    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include'
-    });
-    return handleResponse(response);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include'
+      });
+      
+      // Clear token from localStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      return handleResponse(response);
+    } catch (error) {
+      // Clear token even if logout request fails
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      throw error;
+    }
   },
   
   async getCurrentUser() {
     try {
       console.log('Fetching current user...');
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No token found');
+        return null;
+      }
+      
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         method: 'GET',
         headers: getHeaders(),
         credentials: 'include'
       });
-      const user = await handleResponse(response);
-      console.log('Current user:', user);
-      return user;
+      
+      const data = await handleResponse(response);
+      console.log('Current user:', data.user);
+      return data.user;
     } catch (error) {
       console.error('Error fetching current user:', error);
+      // Clear invalid token
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
       return null;
     }
   }
 };
 
 // Reports API
-export const reportsAPI = {
+const reportsAPI = {
   async createReport(reportData) {
     try {
       console.log('Creating report:', reportData);
@@ -132,7 +174,7 @@ export const reportsAPI = {
 };
 
 // Alerts API
-export const alertsAPI = {
+const alertsAPI = {
   async getAlerts() {
     try {
       console.log('Fetching alerts...');

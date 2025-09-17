@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>INCOIS - Ocean Hazard Reporting Platform</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -43,341 +45,62 @@
         </div>
     </div>
 
-    <!-- Main Application -->
-    <div id="main-app" class="main-app hidden">
-        <!-- Header -->
-        <header class="app-header">
-            <div class="header-content">
-                <div class="header-left">
-                    <h1 class="app-title">🌊 INCOIS Ocean Hazard Platform</h1>
-                    <div class="user-info">
-                        <span id="current-username" class="username"></span>
-                        <span id="current-role" class="role-badge"></span>
-                    </div>
-                </div>
-                <div class="header-right">
-                    <select id="language-selector" class="form-control language-selector">
-                        <option value="en">English</option>
-                        <option value="hi">हिंदी</option>
-                        <option value="ta">தமிழ்</option>
-                        <option value="te">తెలుగు</option>
-                    </select>
-                    <button id="logout-btn" class="btn btn--outline btn--sm">Logout</button>
-                </div>
-            </div>
+    <!-- Main App (hidden until login) -->
+    <div id="main-app" class="hidden">
+        <header>
+            <span id="current-username"></span>
+            <span id="current-role" class="role-badge"></span>
+            <button id="logout-btn">Logout</button>
         </header>
-
-        <!-- Navigation -->
-        <nav class="app-nav">
-            <div class="nav-item" data-required-role="all">
-                <button class="nav-btn active" data-view="dashboard">📊 Dashboard</button>
-            </div>
-            <div class="nav-item" data-required-role="all">
-                <button class="nav-btn" data-view="map">🗺️ Map View</button>
-            </div>
-            <div class="nav-item" data-required-role="citizen">
-                <button class="nav-btn" data-view="report">📝 Report Hazard</button>
-            </div>
-            <div class="nav-item" data-required-role="official analyst">
-                <button class="nav-btn" data-view="verify">✅ Verify Reports</button>
-            </div>
-            <div class="nav-item" data-required-role="analyst">
-                <button class="nav-btn" data-view="analytics">📈 Social Analytics</button>
-            </div>
-            <div class="nav-item" data-required-role="official">
-                <button class="nav-btn" data-view="alerts">🚨 Alerts</button>
-            </div>
+        <nav>
+            <button class="nav-btn" data-view="dashboard">Dashboard</button>
+            <button class="nav-btn" data-view="map">Map View</button>
+            <button class="nav-btn" data-view="report">Report Hazard</button>
+            <button class="nav-btn" data-view="verify">Verify Reports</button>
+            <button class="nav-btn" data-view="analytics">Analytics</button>
         </nav>
-
-        <!-- Main Content -->
-        <main class="app-main">
-            <!-- Dashboard View -->
-            <div id="dashboard-view" class="view active" data-role="all">
-                <h2 class="dashboard-title">Dashboard</h2>
-                
-                <!-- Citizen Dashboard -->
-                <div class="dashboard-section" data-role="citizen">
-                    <h3>Your Recent Reports</h3>
-                    <div id="citizen-reports" class="recent-reports">
-                        <!-- Will be populated by JavaScript -->
-                        <div class="empty-state">
-                            <p>You haven't submitted any reports yet.</p>
-                            <button class="btn btn--primary" data-view="report">Report a Hazard</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Official Dashboard -->
-                <div class="dashboard-section" data-role="official">
-                    <h3>Reports Needing Attention</h3>
-                    <div id="pending-reports" class="recent-reports">
-                        <!-- Will be populated by JavaScript -->
-                        <div class="empty-state">
-                            <p>No reports require attention at this time.</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Analyst Dashboard -->
-                <div class="dashboard-section" data-role="analyst">
-                    <h3>Analytics Overview</h3>
-                    <div class="analytics-overview">
-                        <div class="analytics-metric">
-                            <div class="metric-value" id="total-reports">0</div>
-                            <div class="metric-label">Total Reports</div>
-                        </div>
-                        <div class="analytics-metric">
-                            <div class="metric-value" id="verified-reports">0</div>
-                            <div class="metric-label">Verified</div>
-                        </div>
-                        <div class="analytics-metric">
-                            <div class="metric-value" id="high-severity">0</div>
-                            <div class="metric-label">High Severity</div>
-                        </div>
-                        <div class="analytics-metric">
-                            <div class="metric-value" id="social-mentions">0</div>
-                            <div class="metric-label">Social Mentions</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Common Dashboard Elements -->
-                <div class="dashboard-grid">
-                    <!-- Recent Activity -->
-                    <div class="dashboard-card" data-role-widget="all">
-                        <h3>Recent Activity</h3>
-                        <div id="recent-activity" class="recent-activity">
-                            <!-- Will be populated by JavaScript -->
-                        </div>
-                    </div>
-                    
-                    <!-- Hazard Map -->
-                    <div class="dashboard-card" data-role-widget="all">
-                        <h3>Hazard Map</h3>
-                        <div id="mini-map" class="mini-map">
-                            <!-- Will be populated by JavaScript -->
-                            <div class="map-placeholder">Loading map...</div>
-                        </div>
-                    </div>
-                    
-                    <!-- Trends Chart -->
-                    <div class="dashboard-card full-width" data-role-widget="analyst official">
-                        <div class="card-header">
-                            <h3>Hazard Reports Trend</h3>
-                            <div class="time-filter">
-                                <button class="btn btn--sm btn--outline active" data-period="7d">7d</button>
-                                <button class="btn btn--sm btn--outline" data-period="30d">30d</button>
-                                <button class="btn btn--sm btn--outline" data-period="90d">90d</button>
-                            </div>
-                        </div>
-                        <div class="chart-container" style="position: relative; height: 300px;">
-                            <canvas id="trend-chart"></canvas>
-                        </div>
-                    </div>
-                </div>
-                </div>
+        <div class="view" id="dashboard-view">
+            <div id="user-info-card" style="max-width:400px;margin:24px auto 0 auto;padding:24px;background:#222;color:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.18);">
+                <h3 style="color:#1FB8CD;">User Details</h3>
+                <div><b>Name:</b> <span id="dashboard-username"></span></div>
+                <div><b>Role:</b> <span id="dashboard-role"></span></div>
+                <div><b>Email:</b> <span id="dashboard-email"></span></div>
             </div>
-
-            <!-- Map View -->
-            <div id="map-view" class="view" data-role="all">
-                <div class="map-controls">
-                    <div class="filter-controls">
-                        <select id="hazard-filter" class="form-control">
-                            <option value="">All Hazard Types</option>
-                        </select>
-                        <select id="severity-filter" class="form-control">
-                            <option value="">All Severity Levels</option>
-                        </select>
-                        <input type="date" id="date-filter" class="form-control">
-                    </div>
-                    <div class="map-legend">
-                        <div class="legend-title">Legend</div>
-                        <div id="legend-items"></div>
-                    </div>
+            <div id="dashboard-summary" style="max-width:700px;margin:32px auto 0 auto;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;">
+                <div style="background:#fff;color:#222;padding:18px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                    <h4 style="color:#1FB8CD;">Analytics</h4>
+                    <div id="dashboard-analytics-gist"></div>
                 </div>
-                <div class="map-container">
-                    <div id="hazard-map" class="map-placeholder">
-                        <div class="map-title">Interactive Hazard Map</div>
-                        <div id="map-markers"></div>
-                    </div>
+                <div style="background:#fff;color:#222;padding:18px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                    <h4 style="color:#1FB8CD;">Recent Hazards</h4>
+                    <div id="dashboard-hazards-gist"></div>
                 </div>
-            </div>
-
-            <!-- Report Hazard View -->
-            <div id="report-view" class="view" data-role="citizen">
-                <div class="report-container">
-                    <h2>Report Ocean Hazard</h2>
-                    <form id="hazard-report-form" class="hazard-form">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="hazard-type" class="form-label">Hazard Type</label>
-                                <select id="hazard-type" class="form-control" required>
-                                    <option value="">Select Hazard Type</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="severity-level" class="form-label">Severity Level</label>
-                                <select id="severity-level" class="form-control" required>
-                                    <option value="">Select Severity</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="location-input" class="form-label">Location</label>
-                                <input type="text" id="location-input" class="form-control" placeholder="Enter location or click 'Get Current Location'" required>
-                                <button type="button" id="get-location-btn" class="btn btn--secondary btn--sm mt-8">📍 Get Current Location</button>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="hazard-description" class="form-label">Description</label>
-                            <textarea id="hazard-description" class="form-control" rows="4" placeholder="Describe what you observed..." required></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="hazard-media" class="form-label">Photos/Videos (Optional)</label>
-                            <input type="file" id="hazard-media" class="form-control" multiple accept="image/*,video/*">
-                            <div class="file-preview" id="file-preview"></div>
-                        </div>
-                        <div class="form-actions">
-                            <button type="button" id="save-offline-btn" class="btn btn--secondary">💾 Save Offline</button>
-                            <button type="submit" class="btn btn--primary">📤 Submit Report</button>
-                        </div>
-                    </form>
+                <div style="background:#fff;color:#222;padding:18px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                    <h4 style="color:#1FB8CD;">Verify Reports</h4>
+                    <div id="dashboard-verify-gist"></div>
                 </div>
-            </div>
-
-            <!-- Verify Reports View -->
-            <div id="verify-view" class="view" data-role="official analyst">
-                <div class="verify-container">
-                    <h2>Verify Reports</h2>
-                    <div class="verify-controls">
-                        <input type="text" id="search-reports" class="form-control" placeholder="Search reports...">
-                        <select id="status-filter" class="form-control">
-                            <option value="">All Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="verified">Verified</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
-                    </div>
-                    <div id="reports-list" class="reports-list"></div>
-                </div>
-            </div>
-
-            <!-- Social Analytics View -->
-            <div id="analytics-view" class="view" data-role="analyst">
-                <div class="analytics-container">
-                    <h2>Social Media Analytics</h2>
-                    <div class="analytics-grid">
-                        <div class="analytics-card">
-                            <h3>Platform Mentions</h3>
-                            <div class="chart-container" style="position: relative; height: 250px;">
-                                <canvas id="platform-chart"></canvas>
-                            </div>
-                        </div>
-                        <div class="analytics-card">
-                            <h3>Sentiment Analysis</h3>
-                            <div class="chart-container" style="position: relative; height: 250px;">
-                                <canvas id="sentiment-chart"></canvas>
-                            </div>
-                        </div>
-                        <div class="analytics-card">
-                            <h3>Trending Hashtags</h3>
-                            <div class="hashtag-list">
-                                <div class="hashtag-item">#TsunamiAlert <span class="hashtag-count">1,247</span></div>
-                                <div class="hashtag-item">#ChennaiCoast <span class="hashtag-count">892</span></div>
-                                <div class="hashtag-item">#OceanHazard <span class="hashtag-count">656</span></div>
-                                <div class="hashtag-item">#StormSurge <span class="hashtag-count">423</span></div>
-                                <div class="hashtag-item">#CoastalAlert <span class="hashtag-count">318</span></div>
-                            </div>
-                        </div>
-                        <div class="analytics-card">
-                            <h3>Real-time Social Feed</h3>
-                            <div class="social-feed">
-                                <div class="social-post">
-                                    <div class="social-header">🐦 Twitter • 2 min ago</div>
-                                    <div class="social-content">Unusual wave patterns observed at Chennai beach. Authorities investigating. #TsunamiAlert</div>
-                                    <div class="social-sentiment negative">Negative Sentiment</div>
-                                </div>
-                                <div class="social-post">
-                                    <div class="social-header">📘 Facebook • 5 min ago</div>
-                                    <div class="social-content">High waves reported at Mumbai coast. Fishing activities suspended for safety.</div>
-                                    <div class="social-sentiment concerned">Concerned Sentiment</div>
-                                </div>
-                                <div class="social-post">
-                                    <div class="social-header">📺 YouTube • 12 min ago</div>
-                                    <div class="social-content">Educational video: How to identify tsunami warning signs</div>
-                                    <div class="social-sentiment informational">Informational</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Alerts View -->
-            <div id="alerts-view" class="view" data-role="official">
-                <div class="alerts-container">
-                    <h2>Emergency Alerts</h2>
-                    <div class="alert-actions">
-                        <button id="broadcast-alert-btn" class="btn btn--primary">📢 Broadcast Alert</button>
-                        <button id="send-sms-btn" class="btn btn--secondary">📱 Send SMS Alert</button>
-                    </div>
-                    <div class="active-alerts">
-                        <h3>Active Alerts</h3>
-                        <div class="alert-item high-severity">
-                            <div class="alert-header">
-                                <span class="alert-type">🌊 Tsunami Warning</span>
-                                <span class="alert-time">2:30 PM</span>
-                            </div>
-                            <div class="alert-content">High tsunami risk detected near Chennai coast. Immediate evacuation recommended for coastal areas.</div>
-                            <div class="alert-actions-small">
-                                <button class="btn btn--sm btn--outline">Edit</button>
-                                <button class="btn btn--sm btn--secondary">Deactivate</button>
-                            </div>
-                        </div>
-                        <div class="alert-item medium-severity">
-                            <div class="alert-header">
-                                <span class="alert-type">🌪️ Storm Surge Alert</span>
-                                <span class="alert-time">1:15 PM</span>
-                            </div>
-                            <div class="alert-content">Moderate storm surge expected at Goa beaches. Avoid coastal activities.</div>
-                            <div class="alert-actions-small">
-                                <button class="btn btn--sm btn--outline">Edit</button>
-                                <button class="btn btn--sm btn--secondary">Deactivate</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Report Details Modal -->
-    <div id="report-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Report Details</h3>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body" id="modal-body"></div>
-            <div class="modal-footer official-only analyst-only">
-                <button id="verify-report-btn" class="btn btn--primary">✅ Verify</button>
-                <button id="reject-report-btn" class="btn btn--outline">❌ Reject</button>
-                <button class="modal-close btn btn--secondary">Close</button>
             </div>
         </div>
-    </div>
-
-    <!-- Alert Success -->
-    <div id="success-alert" class="alert alert--success hidden">
-        <span id="success-message"></span>
-        <button class="alert-close">&times;</button>
-    </div>
-
-    <!-- Alert Error -->
-    <div id="error-alert" class="alert alert--error hidden">
-        <span id="error-message"></span>
-        <button class="alert-close">&times;</button>
+        <div class="view hidden" id="map-view">
+            <h2>Interactive India Map (Leaflet)</h2>
+            <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+            <div id="leaflet-map" style="height:500px;max-width:700px;margin:auto;border-radius:12px;box-shadow:0 2px 16px rgba(0,0,0,0.15);background:#fff;"></div>
+        </div>
+        <div class="view hidden" id="report-view"></div>
+        <div class="view hidden" id="verify-view">
+            <div class="verify-container">
+                <h2>Verify Hazard Reports</h2>
+                <div id="reports-list"></div>
+                <div id="verify-fallback" style="display:none; color:#888; margin-top:16px;">No reports available for verification.</div>
+            </div>
+        </div>
+        <div class="view hidden" id="analytics-view">
+            <div class="analytics-container">
+                <h2>Disaster Frequency Analytics (India)</h2>
+                <canvas id="analytics-chart" width="400" height="200" style="background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.08);"></canvas>
+                <div id="analytics-fallback" style="display:none; color:#888; margin-top:16px;">No analytics data available.</div>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="app.js"></script>

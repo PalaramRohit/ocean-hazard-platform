@@ -123,9 +123,15 @@ router.post('/login', async (req, res) => {
       });
     }
     
+    // Add login time to user logins array
+    await User.findByIdAndUpdate(user._id, { $push: { loginTimes: new Date() } });
+    
+    // Update lastLogin field to now
+    await User.findByIdAndUpdate(user._id, { $set: { lastLogin: new Date() } });
+    
     // Generate JWT token
     const token = jwt.sign(
-      { id: user._id, role: user.role, username: user.username }, 
+      { userId: user._id, id: user._id, role: user.role, username: user.username }, 
       process.env.JWT_SECRET, 
       { expiresIn: '7d' }
     );
@@ -136,6 +142,13 @@ router.post('/login', async (req, res) => {
       token, 
       role: user.role, 
       username: user.username,
+      user: {
+        id: user._id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      },
       message: 'Login successful'
     });
   } catch (err) {
@@ -147,13 +160,47 @@ router.post('/login', async (req, res) => {
 // Verify token
 router.get('/verify', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.userId || req.user.id).select('-password');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     res.json({ user, valid: true });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get current user (me endpoint)
+router.get('/me', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId || req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ user });
+  } catch (err) {
+    console.error('Get current user error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Logout endpoint
+router.post('/logout', async (req, res) => {
+  try {
+    const { username, logoutTime } = req.body;
+    if (username && logoutTime) {
+      // Add logout time to user logouts array
+      await User.findOneAndUpdate(
+        { username: username.toLowerCase() },
+        { $push: { logoutTimes: logoutTime } }
+      );
+      console.log(`Logout time added for user: ${username} at ${logoutTime}`);
+    }
+    res.clearCookie('token');
+    res.json({ message: 'Logged out successfully' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    res.status(500).json({ error: 'Logout failed' });
   }
 });
 

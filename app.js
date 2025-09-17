@@ -62,12 +62,16 @@ const appData = {
 };
 
 // Import API Service
-import { authAPI, reportsAPI, alertsAPI } from './api.js';
+// Remove ES module import for compatibility
+// import { authAPI, reportsAPI, alertsAPI } from './api.js';
 
 // Global State
 let currentUser = null;
 let currentView = 'dashboard';
 let allReports = [];
+
+// Global DOM element variables
+let loginScreen, mainApp, loginForm, currentRoleSpan, navButtons, views;
 
 // Start the application
 function init() {
@@ -174,6 +178,27 @@ function setupEventListeners() {
     });
   });
   
+  // Responsive UI enhancements for navigation and main content
+  // Add event listeners for navigation to highlight active tab and animate transitions
+  navButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      navButtons.forEach(b => b.classList.remove('active-tab'));
+      btn.classList.add('active-tab');
+      // Animate main content fade out/in
+      if (mainApp) {
+        mainApp.classList.add('fade-out');
+        setTimeout(() => {
+          switchView(btn.dataset.view);
+          mainApp.classList.remove('fade-out');
+          mainApp.classList.add('fade-in');
+          setTimeout(() => mainApp.classList.remove('fade-in'), 400);
+        }, 200);
+      } else {
+        switchView(btn.dataset.view);
+      }
+    });
+  });
+
   // Logout
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
@@ -254,104 +279,6 @@ function showNotification(message, type = 'success') {
   }, 5000);
 }
 
-// Handle login form submission
-const loginForm = document.getElementById('login-form');
-if (loginForm) {
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value;
-    const role = document.getElementById('user-role').value;
-    
-    // Basic validation
-    if (!username || !password || !role) {
-      showNotification('Please fill in all fields', 'error');
-      return;
-    }
-    
-    try {
-      // Show loading state
-      const loginBtn = loginForm.querySelector('button[type="submit"]');
-      const originalBtnText = loginBtn.textContent;
-      loginBtn.disabled = true;
-      loginBtn.innerHTML = '<span class="spinner"></span> Signing in...';
-      
-      // Prepare the login data
-      const loginData = { 
-        username: username.toLowerCase().trim(),
-        password: password,
-        role: role
-      };
-
-      console.log('Attempting login with:', { username: loginData.username, role: loginData.role });
-      
-      try {
-        // Call login API
-        const response = await fetch('http://localhost:5000/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          credentials: 'include',
-          body: JSON.stringify(loginData)
-        });
-        
-        const data = await response.json();
-        console.log('Login response:', { status: response.status, data });
-        
-        if (!response.ok) {
-          throw new Error(data.message || 'Login failed. Please check your credentials.');
-        }
-        
-        if (!data.user) {
-          throw new Error('Invalid response from server. Please try again.');
-        }
-        
-        // Store user data in localStorage
-        const userData = {
-          id: data.user._id || data.user.id,
-          name: data.user.name || data.user.username,
-          username: data.user.username,
-          email: data.user.email,
-          role: data.user.role,
-          token: data.token
-        };
-        
-        localStorage.setItem('user', JSON.stringify(userData));
-        
-        // Update UI with user information
-        updateUserUI(userData);
-        
-        // Show success message
-        showNotification(`Welcome, ${userData.name || userData.username}!`, 'success');
-        
-        // Redirect to dashboard after a short delay
-        setTimeout(() => {
-          window.location.href = 'index.html';
-        }, 1000);
-        
-      } catch (error) {
-        console.error('Login error:', error);
-        showNotification(error.message || 'Login failed. Please try again.', 'error');
-        throw error; // Re-throw to be caught by the outer catch
-      }
-      
-    } catch (error) {
-      console.error('Login error:', error);
-      showNotification(error.message || 'Login failed. Please check your credentials and try again.', 'error');
-    } finally {
-      // Reset button state
-      const loginBtn = loginForm.querySelector('button[type="submit"]');
-      if (loginBtn) {
-        loginBtn.disabled = false;
-        loginBtn.textContent = 'Sign In';
-      }
-    }
-  });
-}
-
 // Update UI with user information
 function updateUserUI(user) {
   const usernameElement = document.getElementById('current-username');
@@ -366,53 +293,6 @@ function updateUserUI(user) {
     // Add role-specific class for styling
     roleElement.className = 'role-badge';
     roleElement.classList.add(`role-${user.role}`);
-  }
-}
-
-// Check if user is already logged in
-document.addEventListener('DOMContentLoaded', () => {
-  const user = JSON.parse(localStorage.getItem('user'));
-  const loginScreen = document.getElementById('login-screen');
-  const mainApp = document.getElementById('main-app');
-  
-  if (user && loginScreen && mainApp) {
-    loginScreen.style.display = 'none';
-    mainApp.style.display = 'block';
-    
-    // Update UI with user information
-    updateUserUI(user);
-    
-    // Update UI based on user role
-    updateUIForRole(user.role);
-  }
-});
-
-// Show notification message
-function showNotification(message, type = 'info') {
-  const notification = document.createElement('div');
-  notification.className = `notification ${type}`;
-  notification.innerHTML = `
-    <span class="notification-message">${message}</span>
-    <button class="notification-close">&times;</button>
-  `;
-  
-  // Add to notification container
-  const container = document.getElementById('notification-container') || createNotificationContainer();
-  container.appendChild(notification);
-  
-  // Auto-remove after 5 seconds
-  setTimeout(() => {
-    notification.classList.add('fade-out');
-    setTimeout(() => notification.remove(), 300);
-  }, 5000);
-  
-  // Close button handler
-  const closeBtn = notification.querySelector('.notification-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      notification.classList.add('fade-out');
-      setTimeout(() => notification.remove(), 300);
-    });
   }
 }
 
@@ -497,10 +377,8 @@ async function handleLogin(e) {
     updateUserUI(data.user);
     showNotification('Login successful!', 'success');
     
-    // Redirect to dashboard
-    setTimeout(() => {
-      window.location.href = 'dashboard.html';
-    }, 1000);
+    // Show main UI after login (SPA logic)
+    handleSuccessfulLogin(data.user);
     
   } catch (error) {
     console.error('Login error:', error);
@@ -510,78 +388,57 @@ async function handleLogin(e) {
   }
 }
 
-function updateUserUI(user) {
-  if (!user) return;
-  
-  // Update username in header
-  const usernameElement = document.getElementById('current-username');
-  if (usernameElement) {
-    usernameElement.textContent = user.name || user.username;
-  }
-  
-  // Update role badge
-  const roleElement = document.getElementById('current-role');
-  if (roleElement) {
-    roleElement.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
-    roleElement.className = 'role-badge';
-    roleElement.classList.add(`role-${user.role}`);
-  }
-  
-  // Show user info section
-  const userInfoElement = document.querySelector('.user-info');
-  if (userInfoElement) {
-    userInfoElement.style.display = 'flex';
-  }
-}
-
 function handleSuccessfulLogin(user) {
   console.log('Handling successful login for user:', user.username, 'with role:', user.role);
-  
   try {
-    // Update current user in memory
     currentUser = user;
-    
-    // Update UI state
-    console.log('Updating UI state after login');
+    console.log('loginScreen:', loginScreen);
+    console.log('mainApp:', mainApp);
     if (loginScreen) {
       loginScreen.style.display = 'none';
       loginScreen.classList.add('hidden');
     }
-    
     if (mainApp) {
       mainApp.style.display = 'block';
       mainApp.classList.remove('hidden');
+      mainApp.style.visibility = 'visible';
+      mainApp.style.opacity = '1';
+      mainApp.style.position = '';
+      mainApp.style.zIndex = '';
+      // Remove any inline style that could hide it
+      mainApp.style.removeProperty('display');
+      mainApp.style.removeProperty('visibility');
+      mainApp.style.removeProperty('opacity');
+      mainApp.style.removeProperty('position');
+      mainApp.style.removeProperty('z-index');
+      // Log all classes and computed style
+      console.log('mainApp classes:', mainApp.className);
+      console.log('mainApp computed style:', window.getComputedStyle(mainApp));
+      console.log('mainApp should now be visible');
+    } else {
+      console.error('mainApp not found in DOM');
     }
-    
-    // Update user info in header
     if (currentRoleSpan) {
       currentRoleSpan.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
     }
-    
-    // Update UI based on user role
-    console.log('Updating UI for role:', user.role);
     updateUIForRole(user.role);
-    
-    // Initialize application data
-    console.log('Initializing application data...');
+    renderRecentReports();
+    showReportHazardOptions();
+    initializeMap();
+    initializeCharts();
+    updateStatistics();
     Promise.all([
       loadUserData(),
       initializeMap(),
       initializeCharts()
     ]).then(() => {
-      console.log('Application data loaded, switching to dashboard');
       switchView('dashboard');
-      
-      // Show welcome message
       showAlert(`Welcome back, ${user.name || user.username}!`, 'success');
-      
     }).catch(error => {
       console.error('Error initializing application:', error);
-      // Still switch to dashboard even if some data fails to load
       switchView('dashboard');
       showAlert('Welcome! Some features may be limited due to loading issues.', 'warning');
     });
-    
   } catch (error) {
     console.error('Error in handleSuccessfulLogin:', error);
     showAlert('An error occurred while initializing your session. Please refresh the page and try again.', 'error');
@@ -609,69 +466,121 @@ async function loadUserData() {
 
 async function handleLogout() {
   try {
+    // Store logout time in database
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (user) {
+      await fetch(API_CONFIG.getUrl('/auth/logout'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ username: user.username, logoutTime: new Date().toISOString() })
+      });
+    }
     await authAPI.logout();
+    // Remove user info from localStorage
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
   } catch (error) {
     console.error('Logout error:', error);
   } finally {
-    // Reset user state
-    currentUser = null;
-    allReports = [];
-    
-    // Reset UI
-    document.getElementById('login-form').reset();
-    
-    // Show login screen
-    loginScreen.classList.remove('hidden');
-    mainApp.classList.add('hidden');
-    
-    // Reset any active views
-    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-    
-    // Show logout message
-    showAlert('You have been logged out', 'info');
+    // Redirect to sign-in page (index.html)
+    window.location.href = 'index.html';
   }
 }
 
 function switchView(viewName) {
   console.log('Switching to view:', viewName);
-  
   // Update navigation
-  console.log('Updating navigation buttons');
   navButtons.forEach(btn => {
     const isActive = btn.dataset.view === viewName;
-    console.log(`Button ${btn.dataset.view}: ${isActive ? 'active' : 'inactive'}`);
     btn.classList.toggle('active', isActive);
   });
-  
   // Update views
-  console.log('Updating view visibility');
   views.forEach(view => {
     const isTargetView = view.id === `${viewName}-view`;
-    console.log(`View ${view.id}: ${isTargetView ? 'showing' : 'hiding'}`);
     view.classList.toggle('active', isTargetView);
+    view.style.display = isTargetView ? 'block' : 'none'; // Ensure only active view is visible
   });
-  
   currentView = viewName;
-  console.log('Current view set to:', currentView);
-  
   // Initialize specific view functionality
-  console.log('Initializing view-specific functionality');
   if (viewName === 'map') {
-    console.log('Initializing map...');
     setTimeout(() => initializeMap(), 100);
   } else if (viewName === 'verify') {
-    console.log('Rendering reports list...');
-    setTimeout(() => renderReportsList(), 100);
+    setTimeout(() => renderReportsList(), 100); // Ensure verify view is visible before rendering
   } else if (viewName === 'analytics') {
-    console.log('Initializing analytics charts...');
     setTimeout(() => initializeAnalyticsCharts(), 100);
   } else if (viewName === 'dashboard') {
-    console.log('Initializing dashboard...');
     updateDashboard();
+  } else if (viewName === 'report') {
+    showReportHazardOptions();
   }
-  
-  console.log('View switch complete');
+}
+
+function showReportHazardOptions() {
+  const reportView = document.getElementById('report-view');
+  if (!reportView) return;
+  reportView.innerHTML = '';
+  const title = document.createElement('h2');
+  title.textContent = 'Report a Hazard in My Area';
+  reportView.appendChild(title);
+  const optionsContainer = document.createElement('div');
+  optionsContainer.className = 'hazard-options';
+  appData.hazardTypes.forEach(function(type) {
+    var option = document.createElement('button');
+    option.className = 'hazard-option';
+    option.innerHTML = type.icon + ' <span>' + type.name + '</span>';
+    option.style.backgroundColor = type.color;
+    option.onclick = function() { showHazardReportForm(type); };
+    optionsContainer.appendChild(option);
+  });
+  reportView.appendChild(optionsContainer);
+}
+
+function showHazardReportForm(type) {
+  var reportView = document.getElementById('report-view');
+  if (!reportView) return;
+  reportView.innerHTML = '';
+  var title = document.createElement('h2');
+  title.textContent = 'Report: ' + type.name;
+  reportView.appendChild(title);
+  var formCard = document.createElement('div');
+  formCard.className = 'hazard-report-card';
+  var form = document.createElement('form');
+  form.className = 'hazard-report-form';
+  form.innerHTML = `
+    <label>Location:</label>
+    <input type='text' name='location' placeholder='Enter your location' required class='input-interactive'><br>
+    <label>Description:</label>
+    <textarea name='description' placeholder='Describe the situation' required class='input-interactive'></textarea><br>
+    <button type='submit' class='btn-interactive'>Submit Report</button>
+    <button type='button' id='cancel-report-btn' class='btn-interactive btn-cancel'>Cancel</button>
+    <div id='report-success' class='report-success hidden'>✅ Report submitted!</div>
+  `;
+  form.onsubmit = function(e) {
+    e.preventDefault();
+    document.getElementById('report-success').classList.remove('hidden');
+    form.classList.add('submitted');
+    setTimeout(() => {
+      form.classList.remove('submitted');
+      document.getElementById('report-success').classList.add('hidden');
+      switchView('dashboard');
+    }, 1200);
+  };
+  formCard.appendChild(form);
+  reportView.appendChild(formCard);
+  document.getElementById('cancel-report-btn').onclick = function() { switchView('dashboard'); };
+  // Add input focus/blur effects
+  form.querySelectorAll('.input-interactive').forEach(input => {
+    input.addEventListener('focus', function() {
+      input.classList.add('focused');
+    });
+    input.addEventListener('blur', function() {
+      input.classList.remove('focused');
+    });
+  });
 }
 
 async function handleReportSubmit(e) {
@@ -774,44 +683,81 @@ function saveReportOffline() {
 }
 
 function initializeMap() {
-  const mapMarkers = document.getElementById('map-markers');
-  const legendItems = document.getElementById('legend-items');
-  
-  if (!mapMarkers || !legendItems) return;
-  
-  // Clear existing content
-  mapMarkers.innerHTML = '';
-  legendItems.innerHTML = '';
-  
-  // Create legend
-  appData.hazardTypes.forEach(type => {
-    const legendItem = document.createElement('div');
-    legendItem.className = 'legend-item';
-    legendItem.innerHTML = `
-      <div class="legend-color" style="background-color: ${type.color}"></div>
-      <span>${type.icon} ${type.name}</span>
-    `;
-    legendItems.appendChild(legendItem);
-  });
-  
-  // Create markers for reports
-  allReports.forEach((report, index) => {
-    const hazardType = appData.hazardTypes.find(t => t.id === report.type);
-    if (!hazardType) return;
-    
-    const marker = document.createElement('div');
-    marker.className = `map-marker ${report.type}`;
-    marker.style.left = `${20 + (index * 15) % 80}%`;
-    marker.style.top = `${30 + (index * 10) % 40}%`;
-    marker.textContent = hazardType.icon;
-    marker.title = `${hazardType.name} - ${report.location.name}`;
-    
-    marker.addEventListener('click', () => {
-      showReportModal(report);
-    });
-    
-    mapMarkers.appendChild(marker);
-  });
+  // Only initialize Leaflet map in leaflet-map container
+  // Initialize Leaflet map
+  try {
+    if (window.L) {
+      const leafletMap = document.getElementById('leaflet-map');
+      if (!leafletMap) return;
+      if (window._leafletMapInstance) {
+        window._leafletMapInstance.remove();
+      }
+      const map = window._leafletMapInstance = L.map('leaflet-map').setView([22.9734, 78.6569], 5); // Center India
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+      // Demo region data (expand as needed)
+      const regionData = [
+        { name: 'Maharashtra', lat: 19.7515, lng: 75.7139, floodProne: true, droughtProne: true, details: 'High risk for both flood and drought.' },
+        { name: 'Gujarat', lat: 22.2587, lng: 71.1924, floodProne: false, droughtProne: true, details: 'Mainly drought prone.' },
+        { name: 'Tamil Nadu', lat: 11.1271, lng: 78.6569, floodProne: true, droughtProne: false, details: 'Flood prone coastal areas.' },
+        { name: 'West Bengal', lat: 22.9868, lng: 87.8550, floodProne: true, droughtProne: false, details: 'Flood prone due to rivers.' },
+        { name: 'Kerala', lat: 10.8505, lng: 76.2711, floodProne: true, droughtProne: false, details: 'Frequent floods in monsoon.' },
+        { name: 'Punjab', lat: 31.1471, lng: 75.3412, floodProne: false, droughtProne: false, details: 'Moderate risk.' },
+        { name: 'Rajasthan', lat: 27.0238, lng: 74.2179, floodProne: false, droughtProne: true, details: 'Desert region, drought prone.' }
+      ];
+
+      // Add click handler to map
+      map.on('click', function(e) {
+        // Find nearest region (simple demo: closest by lat/lng)
+        let nearest = null;
+        let minDist = Infinity;
+        regionData.forEach(region => {
+          const dist = Math.sqrt(Math.pow(region.lat - e.latlng.lat, 2) + Math.pow(region.lng - e.latlng.lng, 2));
+          if (dist < minDist) {
+            minDist = dist;
+            nearest = region;
+          }
+        });
+        if (nearest) {
+          L.popup()
+            .setLatLng(e.latlng)
+            .setContent(`
+              <b>${nearest.name}</b><br>
+              <b>Flood Prone:</b> ${nearest.floodProne ? 'Yes' : 'No'}<br>
+              <b>Drought Prone:</b> ${nearest.droughtProne ? 'Yes' : 'No'}<br>
+              <b>Details:</b> ${nearest.details}
+            `)
+            .openOn(map);
+        } else {
+          L.popup()
+            .setLatLng(e.latlng)
+            .setContent('No region data available for this location.')
+            .openOn(map);
+        }
+      });
+
+      console.log('Leaflet map initialized');
+    } else {
+      // Dynamically load Leaflet if not present
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet/dist/leaflet.js';
+      script.onload = () => {
+        console.log('Leaflet.js loaded');
+        initializeMap();
+      };
+      script.onerror = () => {
+        console.error('Failed to load Leaflet.js');
+        const leafletMap = document.getElementById('leaflet-map');
+        if (leafletMap) leafletMap.innerHTML = '<div style="color:red;padding:24px;">Failed to load map library.</div>';
+      };
+      document.body.appendChild(script);
+    }
+  } catch (err) {
+    console.error('Error initializing Leaflet map:', err);
+    const leafletMap = document.getElementById('leaflet-map');
+    if (leafletMap) leafletMap.innerHTML = '<div style="color:red;padding:24px;">Map failed to load. Check console for details.</div>';
+  }
 }
 
 function setupFilters() {
@@ -837,11 +783,9 @@ function applyMapFilters() {
 function renderRecentReports() {
   const container = document.getElementById('recent-reports');
   if (!container) return;
-  
   container.innerHTML = '';
-  
-  const recentReports = allReports.slice(0, 5);
-  
+  // Use sampleReports if allReports is empty
+  const recentReports = (allReports.length > 0 ? allReports : appData.sampleReports).slice(0, 5);
   recentReports.forEach(report => {
     const hazardType = appData.hazardTypes.find(t => t.id === report.type);
     const reportItem = document.createElement('div');
@@ -860,28 +804,35 @@ function renderRecentReports() {
 
 function renderReportsList() {
   const container = document.getElementById('reports-list');
+  const fallback = document.getElementById('verify-fallback');
   if (!container) return;
-  
   container.innerHTML = '';
-  
   const filteredReports = getFilteredReports();
-  
+  if (filteredReports.length === 0) {
+    if (fallback) fallback.style.display = 'block';
+    return;
+  } else {
+    if (fallback) fallback.style.display = 'none';
+  }
   filteredReports.forEach(report => {
     const hazardType = appData.hazardTypes.find(t => t.id === report.type);
+    const hazardIcon = hazardType && hazardType.icon ? hazardType.icon : '';
+    const hazardName = hazardType && hazardType.name ? hazardType.name : 'Unknown';
+    const locationName = report.location && report.location.name ? report.location.name : 'Unknown';
     const reportCard = document.createElement('div');
     reportCard.className = 'report-card';
     reportCard.innerHTML = `
       <div class="report-card-header">
         <span class="report-id">${report.id}</span>
-        <span class="report-status ${report.status}">${report.status.toUpperCase()}</span>
+        <span class="report-status ${report.status}">${report.status ? report.status.toUpperCase() : 'UNKNOWN'}</span>
       </div>
       <div class="report-meta">
-        <span class="report-meta-item">${hazardType ? hazardType.icon : ''} ${hazardType ? hazardType.name : 'Unknown'}</span>
-        <span class="report-meta-item">📍 ${report.location.name}</span>
-        <span class="report-meta-item">⚠️ ${report.severity.toUpperCase()}</span>
+        <span class="report-meta-item">${hazardIcon} ${hazardName}</span>
+        <span class="report-meta-item">📍 ${locationName}</span>
+        <span class="report-meta-item">⚠️ ${report.severity ? report.severity.toUpperCase() : 'UNKNOWN'}</span>
         <span class="report-meta-item">🕒 ${formatTime(report.timestamp)}</span>
       </div>
-      <div class="report-description">${report.description}</div>
+      <div class="report-description">${report.description || ''}</div>
     `;
     reportCard.addEventListener('click', () => showReportModal(report));
     container.appendChild(reportCard);
@@ -950,7 +901,7 @@ function showReportModal(report) {
       </div>
       <div class="form-group">
         <label class="form-label">Reporter</label>
-        <div>👤 ${report.reporter}</div>
+        <div>👤 ${reporter.reporter}</div>
       </div>
       <div class="form-group">
         <label class="form-label">Description</label>
@@ -972,24 +923,54 @@ function showReportModal(report) {
   const rejectBtn = document.getElementById('reject-report-btn');
   
   if (verifyBtn) {
-    verifyBtn.onclick = () => {
-      report.status = 'verified';
-      updateStatistics();
-      renderReportsList();
-      renderRecentReports();
-      modal.classList.add('hidden');
-      showAlert('Report verified successfully!', 'success');
+    verifyBtn.onclick = async () => {
+      try {
+        // Save verification status to backend
+        const response = await fetch(`/api/reports/${report.id}/verify`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({ status: 'verified' })
+        });
+        if (!response.ok) throw new Error('Failed to verify report');
+        report.status = 'verified';
+        updateStatistics();
+        renderReportsList();
+        renderRecentReports();
+        modal.classList.add('hidden');
+        showAlert('Report verified successfully!', 'success');
+      } catch (error) {
+        showAlert('Error verifying report: ' + error.message, 'error');
+      }
     };
   }
   
   if (rejectBtn) {
-    rejectBtn.onclick = () => {
-      report.status = 'rejected';
-      updateStatistics();
-      renderReportsList();
-      renderRecentReports();
-      modal.classList.add('hidden');
-      showAlert('Report rejected.', 'success');
+    rejectBtn.onclick = async () => {
+      try {
+        // Save rejection status to backend
+        const response = await fetch(`/api/reports/${report.id}/verify`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({ status: 'rejected' })
+        });
+        if (!response.ok) throw new Error('Failed to reject report');
+        report.status = 'rejected';
+        updateStatistics();
+        renderReportsList();
+        renderRecentReports();
+        modal.classList.add('hidden');
+        showAlert('Report rejected.', 'success');
+      } catch (error) {
+        showAlert('Error rejecting report: ' + error.message, 'error');
+      }
     };
   }
 }
@@ -1042,6 +1023,48 @@ function updateStatistics() {
 function updateDashboard() {
   updateStatistics();
   renderRecentReports();
+  // Update user info card
+  const user = currentUser || JSON.parse(localStorage.getItem('user'));
+  if (user) {
+    const usernameEl = document.getElementById('dashboard-username');
+    const roleEl = document.getElementById('dashboard-role');
+    const emailEl = document.getElementById('dashboard-email');
+    if (usernameEl) usernameEl.textContent = user.name || user.username || '';
+    if (roleEl) roleEl.textContent = user.role || '';
+    if (emailEl) emailEl.textContent = user.email || '';
+  }
+  // Analytics gist
+  const analyticsGist = document.getElementById('dashboard-analytics-gist');
+  if (analyticsGist) {
+    const totalReports = allReports.length;
+    const highSeverity = allReports.filter(r => r.severity === 'high' || r.severity === 'critical').length;
+    analyticsGist.innerHTML = `<b>Total Reports:</b> ${totalReports}<br><b>High Severity:</b> ${highSeverity}`;
+  }
+  // Recent hazards gist
+  const hazardsGist = document.getElementById('dashboard-hazards-gist');
+  if (hazardsGist) {
+    const recent = (allReports.length > 0 ? allReports : appData.sampleReports).slice(0, 3);
+    hazardsGist.innerHTML = recent.map(r => {
+      const locName = r.location && r.location.name ? r.location.name : 'Unknown';
+      const typeName = r.type || 'Unknown';
+      const severity = r.severity || 'Unknown';
+      return `<div><b>${typeName}</b> - ${locName} (${severity})</div>`;
+    }).join('');
+  }
+  // Verify reports gist
+  const verifyGist = document.getElementById('dashboard-verify-gist');
+  if (verifyGist) {
+    const pending = allReports.filter(r => r.status === 'pending').slice(0, 3);
+    if (pending.length === 0) {
+      verifyGist.innerHTML = 'No pending reports.';
+    } else {
+      verifyGist.innerHTML = pending.map(r => {
+        const locName = r.location && r.location.name ? r.location.name : 'Unknown';
+        const typeName = r.type || 'Unknown';
+        return `<div><b>${r.id}</b> - ${locName} (${typeName})</div>`;
+      }).join('');
+    }
+  }
 }
 
 function initializeCharts() {
@@ -1088,68 +1111,54 @@ function initializeCharts() {
 }
 
 function initializeAnalyticsCharts() {
-  // Platform Chart
-  const platformCtx = document.getElementById('platform-chart');
-  if (platformCtx && !charts.platform) {
-    charts.platform = new Chart(platformCtx, {
-      type: 'doughnut',
-      data: {
-        labels: ['Twitter', 'Facebook', 'YouTube'],
-        datasets: [{
-          data: [1247, 892, 156],
-          backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C'],
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom'
-          }
-        }
-      }
-    });
+  const analyticsCtx = document.getElementById('analytics-chart');
+  if (!analyticsCtx) return;
+  // Aggregate disaster counts from allReports or sampleReports
+  const reports = allReports.length > 0 ? allReports : appData.sampleReports;
+  const typeCounts = {};
+  appData.hazardTypes.forEach(type => { typeCounts[type.name] = 0; });
+  reports.forEach(report => {
+    const type = appData.hazardTypes.find(t => t.id === report.type);
+    if (type) typeCounts[type.name]++;
+  });
+  const labels = Object.keys(typeCounts);
+  const data = Object.values(typeCounts);
+  const backgroundColors = appData.hazardTypes.map(t => t.color);
+  if (window.analyticsChart) {
+    window.analyticsChart.destroy();
   }
-  
-  // Sentiment Chart
-  const sentimentCtx = document.getElementById('sentiment-chart');
-  if (sentimentCtx && !charts.sentiment) {
-    charts.sentiment = new Chart(sentimentCtx, {
-      type: 'bar',
-      data: {
-        labels: ['Negative', 'Concerned', 'Neutral', 'Informational'],
-        datasets: [{
-          data: [45, 30, 15, 10],
-          backgroundColor: ['#DB4545', '#D2BA4C', '#5D878F', '#1FB8CD'],
-          borderWidth: 0
-        }]
+  window.analyticsChart = new Chart(analyticsCtx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Disaster Reports in India',
+        data: data,
+        backgroundColor: backgroundColors,
+        borderColor: backgroundColors,
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        title: {
+          display: true,
+          text: 'Disaster Frequency Analytics (India)'
+        }
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          }
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Number of Reports' }
         },
-        scales: {
-          y: {
-            beginAtZero: true,
-            grid: {
-              color: 'rgba(0,0,0,0.1)'
-            }
-          },
-          x: {
-            grid: {
-              display: false
-            }
-          }
+        x: {
+          title: { display: true, text: 'Disaster Type' }
         }
       }
-    });
-  }
+    }
+  });
 }
 
 function handleLanguageChange(e) {
@@ -1325,18 +1334,7 @@ function updateRoleSpecificUI(role) {
 function updateDashboardForRole(role) {
   const dashboardTitle = document.querySelector('#dashboard-view h2');
   if (dashboardTitle) {
-    const roleDisplay = role.charAt(0).toUpperCase() + role.slice(1);
-    dashboardTitle.textContent = `${roleDisplay} Dashboard`;
+    dashboardTitle.textContent = `Dashboard - ${role.charAt(0).toUpperCase() + role.slice(1)}`;
   }
-  
-  // Update any role-specific dashboard widgets
-  const roleWidgets = document.querySelectorAll(`[data-role-widget]`);
-  roleWidgets.forEach(widget => {
-    const widgetRoles = widget.dataset.roleWidget.split(' ');
-    const shouldShow = widgetRoles.includes(role) || widgetRoles.includes('all');
-    widget.style.display = shouldShow ? 'block' : 'none';
-  });
+  // Additional role-based dashboard updates can be implemented here
 }
-
-// Start real-time updates simulation
-setTimeout(simulateRealTimeUpdates, 5000); // Start after 5 seconds

@@ -46,6 +46,8 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date
   },
+  loginTimes: [{ type: Date }], // Array to store all login times
+  logoutTimes: [{ type: Date }], // Array to store all logout times
   createdAt: { 
     type: Date, 
     default: Date.now 

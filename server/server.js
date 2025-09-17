@@ -2,26 +2,24 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const path = require('path');
 
 console.log('Starting server...');
 
 const app = express();
 
 // CORS configuration for development
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  next();
-});
+app.use(cors({
+  origin: 'http://127.0.0.1:3000',
+  credentials: true,
+}));
 
 app.use(express.json());
+app.use(cookieParser());
+
+// Serve static files for frontend
+app.use(express.static(path.join(__dirname, '..')));
 
 // Test route - IMPORTANT: Must be before other routes
 app.get('/', (req, res) => {

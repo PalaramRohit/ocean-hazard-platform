@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>INCOIS Ocean Hazard Platform - Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="enhanced-styles.css">
+</head>
+<body>
+  <header class="dashboard-header">
+    <div class="logo-title">
+      <img src="logo.png" alt="INCOIS Logo" style="height:32px;vertical-align:middle;margin-right:10px;">
+      <span class="dashboard-title">INCOIS Ocean Hazard Platform</span>
+    </div>
+    <div class="header-actions">
+      <select id="language-selector">
+        <option value="en">English</option>
+        <option value="hi">हिंदी</option>
+        <option value="ta">தமிழ்</option>
+        <option value="te">తెలుగు</option>
+      </select>
+      <button id="logout-btn">Logout</button>
+    </div>
+  </header>
+  <nav class="dashboard-nav">
+    <button class="nav-btn active" data-view="dashboard"><span>🏠</span> Dashboard</button>
+    <button class="nav-btn" data-view="map"><span>🗺️</span> Map View</button>
+    <button class="nav-btn" data-view="report"><span>📝</span> Report Hazard</button>
+    <button class="nav-btn" data-view="verify"><span>✅</span> Verify Reports</button>
+    <button class="nav-btn" data-view="analytics"><span>📊</span> Social Analytics</button>
+    <button class="nav-btn" data-view="alerts"><span>🚨</span> Alerts</button>
+  </nav>
+  <main class="dashboard-container">
+    <h2 class="section-heading">Dashboard</h2>
+    <hr>
+    <section class="card-section">
+      <div class="card">
+        <h3>Your Recent Reports</h3>
+        <div class="card-content">
+          <p>You haven't submitted any reports yet.</p>
+          <button class="primary-btn">Report a Hazard</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Reports Needing Attention</h3>
+        <div class="card-content">
+          <p>No reports require attention at this time.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Analytics Overview</h3>
+        <div class="card-content">
+          <canvas id="analytics-chart" width="400" height="200"></canvas>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

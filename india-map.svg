@@ -1,0 +1,11 @@
+<svg viewBox="70 10 700 600" xmlns="http://www.w3.org/2000/svg" aria-label="Political map of India">
+  <!-- Example State: Maharashtra -->
+  <path class="state" id="MH" d="M200,300 L220,280 L240,290 L230,310 Z" />
+  <text class="state-label" x="215" y="295">Maharashtra</text>
+
+  <!-- Example State: Gujarat -->
+  <path class="state" id="GJ" d="M170,270 L190,260 L210,280 L200,300 Z" />
+  <text class="state-label" x="185" y="275">Gujarat</text>
+
+  <!-- Add all states paths here, following a similar pattern -->
+</svg>

@@ -551,24 +551,23 @@ function showHazardReportForm(type) {
   var form = document.createElement('form');
   form.className = 'hazard-report-form';
   form.innerHTML = `
+    <input type="hidden" name="hazard-type" value="${type.id}">
     <label>Location:</label>
-    <input type='text' name='location' placeholder='Enter your location' required class='input-interactive'><br>
+    <input type='text' name='location-name' placeholder='Enter your location' required class='input-interactive'><br>
+    <label>Severity:</label>
+    <select name="severity" required class="input-interactive">
+      ${appData.severityLevels.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+    </select><br>
     <label>Description:</label>
     <textarea name='description' placeholder='Describe the situation' required class='input-interactive'></textarea><br>
     <button type='submit' class='btn-interactive'>Submit Report</button>
     <button type='button' id='cancel-report-btn' class='btn-interactive btn-cancel'>Cancel</button>
     <div id='report-success' class='report-success hidden'>✅ Report submitted!</div>
   `;
-  form.onsubmit = function(e) {
-    e.preventDefault();
-    document.getElementById('report-success').classList.remove('hidden');
-    form.classList.add('submitted');
-    setTimeout(() => {
-      form.classList.remove('submitted');
-      document.getElementById('report-success').classList.add('hidden');
-      switchView('dashboard');
-    }, 1200);
-  };
+  // Use your actual handler for submission
+  form.addEventListener('submit', async function(e) {
+    await handleReportSubmit(e);
+  });
   formCard.appendChild(form);
   reportView.appendChild(formCard);
   document.getElementById('cancel-report-btn').onclick = function() { switchView('dashboard'); };
@@ -1338,3 +1337,4 @@ function updateDashboardForRole(role) {
   }
   // Additional role-based dashboard updates can be implemented here
 }
+
